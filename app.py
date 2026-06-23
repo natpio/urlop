@@ -1,136 +1,92 @@
 import streamlit as st
 import pandas as pd
+from streamlit_gsheets import GSheetsConnection
 
-# Konfiguracja strony
+# 1. KONFIGURACJA STRONY W PRZEGLĄDARCE
 st.set_page_config(
-    page_title="Handover Hub - Urlop",
+    page_title="Handover Hub",
     page_icon="📋",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# 1. PROSTE ZABEZPIECZENIE HASŁEM (Opcjonalne)
-def check_password():
-    if "password_correct" not in st.session_state:
-        st.session_state["password_correct"] = False
-        
-    if st.session_state["password_correct"]:
-        return True
+# 2. BLOKADA HASŁEM (Wpisz swoje hasło dla zespołu)
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
 
+if not st.session_state["authenticated"]:
     st.title("🔒 Dostęp zablokowany")
     password = st.text_input("Podaj hasło zespołu, aby zobaczyć przekazanie obowiązków:", type="password")
-    if password == "Urlop2026":  # Tutaj wpisz swoje hasło
-        st.session_state["password_correct"] = True
+    if password == "Urlop2026":  # <-- TUTAJ WPISZ SWOJE HASŁO
+        st.session_state["authenticated"] = True
         st.rerun()
     elif password:
         st.error("❌ Nieprawidłowe hasło!")
-    return False
-
-if not check_password():
     st.stop()
 
-# 2. POŁĄCZENIE Z GOOGLE SHEETS (INSTRUKCJA)
-# W produkcyjnej wersji odkomentuj poniższe linie, aby czytać dane na żywo z Google Sheets:
-# from streamlit_gsheets import GSheetsConnection
-# conn = st.connection("gsheets", type=GSheetsConnection)
-# df_tasks = conn.read(worksheet="Zadania")
-
-# T營MCZASOWE DANE PRZYKŁADOWE (Symulacja danych z Google Sheets)
-@st.cache_data
-def load_mock_data():
-    tasks = pd.DataFrame([
-        {"Temat": "🎪 Event: Targi Poznań", "Zadanie": "Opłacenie faktury za stoisko", "Osoba": "Anna", "Termin": "2026-06-25", "Status": "Do zrobienia", "Notatki": "Faktura jest na Dysku Google w folderze Targi/Finanse."},
-        {"Temat": "🎪 Event: Targi Poznań", "Zadanie": "Koordynacja kuriera z materiałami", "Osoba": "Jan", "Termin": "2026-06-28", "Status": "W trakcie", "Notatki": "Kurier DHL, nr zlecenia w bazie wiedzy."},
-        {"Temat": "🚀 Projekt: Wysyłka XYZ", "Zadanie": "Odprawa celna kontenera", "Osoba": "Anna", "Termin": "2026-07-02", "Status": "Do zrobienia", "Notatki": "Agencja celna ma wszystkie dokumenty. W razie problemów dzwonić do p. Marka."},
-        {"Temat": "📦 Logistyka Magazynowa", "Zadanie": "Inwentaryzacja palet zwrotnych", "Osoba": "Tomasz", "Termin": "2026-07-05", "Status": "Zrobione", "Notatki": "Zrobione wcześniej, raport w arkuszu głównym."}
-    ])
-    
-    notes = {
-        "🎪 Event: Targi Poznań": "Kontakt do organizatora: +48 123 456 789 (p. Kryspin). Wszystkie wejściówki są na mailu biurowym.",
-        "🚀 Projekt: Wysyłka XYZ": "Kluczowy klient. Jeśli zgłosi reklamację, od razu eskalować do Dyrektora.",
-        "📦 Logistyka Magazynowa": "Wózek widłowy nr 2 jedzie na przegląd w środę. Zastępczy będzie od rana."
-    }
-    return tasks, notes
-
-df_tasks, dict_notes = load_mock_data()
-
-
-# 3. GŁÓWNY INTERFEJS APLIKACJI
+# 3. TYTUŁ I NAGŁÓWEK
 st.title("📋 Handover Hub – Centrum Przekazania Obowiązków")
-st.subheader("Wszystkie kluczowe tematy i zadania na czas mojego urlopu w jednym miejscu.")
+st.subheader("Wszystkie kluczowe tematy, notatki i zadania na czas urlopu.")
 st.divider()
 
-# Wyciągamy unikalne tematy (np. eventy), które posłużą jako nazwy zakładek
+# 4. POBIERANIE DANYCH Z GOOGLE SHEETS
+# Aplikacja spróbuje połączyć się z Twoim arkuszem. Jeśli jeszcze go nie podepniesz, wyświetli dane demonstracyjne.
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    # Czytamy dane (domyślnie z pierwszej zakładki arkusza)
+    df_tasks = conn.read()
+    
+    # Czyszczenie pustych wierszy
+    df_tasks = df_tasks.dropna(subset=["Temat", "Zadanie"])
+except Exception as e:
+    st.warning("⚠️ Brak połączenia z prawdziwym Google Sheets (lub błędny link). Wyświetlam dane demonstracyjne.")
+    # Dane demonstracyjne pokazujące strukturę tabeli, jakiej oczekuje aplikacja:
+    df_tasks = pd.DataFrame([
+        {"Temat": "🎪 Event: Targi Poznań", "Zadanie": "Opłacenie faktury za stoisko", "Osoba": "Anna", "Termin": "2026-06-25", "Status": "Do zrobienia", "Notatki": "Kontakt do organizatora: p. Kryspin. Faktura jest na Dysku Google."},
+        {"Temat": "🎪 Event: Targi Poznań", "Zadanie": "Wysyłka katalogów kurierem", "Osoba": "Jan", "Termin": "2026-06-28", "Status": "W trakcie", "Notatki": "Materiały spakowane leżą w sekcji B magazynu."},
+        {"Temat": "🚀 Projekt: Klient XYZ", "Zadanie": "Odprawa celna kontenera", "Osoba": "Anna", "Termin": "2026-07-02", "Status": "Do zrobienia", "Notatki": "Agencja celna ma dokumenty. W razie problemów dzwonić do p. Marka."},
+        {"Temat": "📦 Logistyka Magazynowa", "Zadanie": "Przegląd wózka widłowego", "Osoba": "Tomasz", "Termin": "2026-07-05", "Status": "Zrobione", "Notatki": "Wózek nr 2 jedzie do serwisu w środę od rana."}
+    ])
+
+# 5. DYNAMICZNE ZAKŁADKI (DLA KAŻDEGO EVENTU / TEMATU OSOBNA)
+# Wyciągamy listę unikalnych tematów z tabeli
 lista_tematow = sorted(df_tasks["Temat"].unique().tolist())
-# Dodajemy na początek stałą zakładkę z ogólnym podsumowaniem
 nazwy_zakladek = ["🚨 GŁÓWNE PRIORYTETY"] + lista_tematow
 
-# Tworzenie dynamicznych zakładek w Streamlit
+# Tworzenie zakładek na stronie internetowej
 zakladki = st.tabs(nazwy_zakladek)
 
-# --- ZAKŁADKA 1: OGÓLNE PRIORYTETY ---
+# --- Zakładka Ogólna ---
 with zakladki[0]:
-    st.header("🚨 Najważniejsze wskaźniki i zadania na ten tydzień")
+    st.header("🚨 Statystyki i instrukcja ogólna")
     
-    # Metryki na górze strony
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Wszystkie zadania", len(df_tasks))
-    with col2:
-        st.metric("W trakcie realizacji", len(df_tasks[df_tasks["Status"] == "W trakcie"]))
-    with col3:
-        st.metric("Do zrobienia", len(df_tasks[df_tasks["Status"] == "Do zrobienia"]))
-        
-    st.markdown("""
-    ### 📅 Instrukcja ogólna:
-    1. Przejrzyj dedykowaną zakładkę dla danego eventu/projektu.
-    2. W każdej zakładce znajdziesz **notatki strategiczne** oraz **listę konkretnych zadań**.
-    3. Pilne awarie zgłaszajcie zgodnie z listą kontaktów alarmowych w sekcji bocznej.
-    """)
+    col1.metric("Wszystkie zadania", len(df_tasks))
+    col2.metric("W trakcie realizacji", len(df_tasks[df_tasks["Status"] == "W trakcie"]))
+    col3.metric("Oczekujące (Do zrobienia)", len(df_tasks[df_tasks["Status"] == "Do zrobienia"]))
     
-    st.info("💡 Wszystkie dane w zakładkach pochodzą bezpośrednio z arkusza Google Sheets. Zmiana statusu w arkuszu automatycznie odświeży tę stronę.")
+    st.markdown("""
+    ### 📅 Jak korzystać z aplikacji:
+    1. Każdy ważny temat (np. konkretny event lub projekt) ma powyżej **swoją własną, dedykowaną zakładkę**.
+    2. Kliknij w zakładkę wybranego eventu, aby zobaczyć powiązane z nim **notatki, wytyczne i listę zadań**.
+    3. Wszelkie aktualizacje wprowadzaj bezpośrednio w pliku Google Sheets – ta strona odświeży się automatycznie.
+    """)
 
-# --- DYNAMICZNE ZAKŁADKI DLA KAŻDEGO TEMATU/EVENTU ---
+# --- Dynamiczne Zakładki Tematyczne ---
 for i, temat in enumerate(lista_tematow):
-    # i+1 ponieważ indeks 0 to zakładka ogólna
     with zakladki[i+1]:
-        st.header(f"Zarządzanie: {temat}")
+        st.header(f"Zarządzanie tematem: {temat}")
         
-        # Sekcja z notatkami i opisem (Wymieniane przez Ciebie kluczowe notatki)
-        st.subheader("🧠 Moje notatki i wytyczne:")
-        opis_tematu = dict_notes.get(temat, "Brak dodatkowych notatek dla tego tematu.")
-        st.info(opis_tematu)
-        
-        # Filtrowanie tabeli zadań tylko dla tego konkretnego tematu
+        # Filtrujemy wiersze tylko dla tego konkretnego eventu/tematu
         df_filtrowane = df_tasks[df_tasks["Temat"] == temat][["Zadanie", "Osoba", "Termin", "Status", "Notatki"]]
         
-        st.subheader("✅ Lista zadań i obowiązków:")
-        
-        # Interaktywne filtry wewnątrz zakładki (np. po osobie lub statusie)
-        wybrana_osoba = st.selectbox(f"Filtruj po osobie ({temat}):", ["Wszyscy"] + df_filtrowane["Osoba"].unique().tolist(), key=f"user_{temat}")
-        
-        if wybrana_osoba != "Wszyscy":
-            df_filtrowane = df_filtrowane[df_filtrowane["Osoba"] == wybrana_osoba]
-            
-        # Wyświetlenie tabeli w ładnej formie
-        st.dataframe(
-            df_filtrowane, 
-            use_container_width=True,
-            column_config={
-                "Status": st.column_config.SelectboxColumn(
-                    "Status",
-                    options=["Do zrobienia", "W trakcie", "Zrobione"],
-                    required=True,
-                )
-            }
-        )
+        # Wyświetlamy zadania w postaci przejrzystej tabeli
+        st.subheader("📋 Lista obowiązków i notatek szczegółowych:")
+        st.dataframe(df_filtrowane, use_container_width=True, hide_index=True)
 
-# 4. PASEK BOCZNY (SIDEBAR) - STAŁE ELEMENTY (KRACH / KONTAKTY)
+# 6. STAŁY PANEL BOCZNY (SIDEBAR) Z KONTAKTAMI ALARMOWYMI
 with st.sidebar:
     st.header("☎️ Sytuacje Awaryjne")
-    st.error("**JEŚLI COŚ SIĘ PALI:**\n\n1. Sprawdź procedurę w zakładce.\n2. Kontaktuj się z Janem (Zastępca): +48 999 888 777.\n3. Do mnie dzwoń tylko jeśli stoi produkcja/transport.")
-    
+    st.error("**JEŚLI COŚ SIĘ PALI:**\n\n1. Kontaktuj się z Janem (Zastępca): +48 999 888 777.\n2. Do mnie dzwoń tylko, jeśli stoi transport lub produkcja.")
     st.divider()
-    st.markdown("📂 **Przydatne Linki:**")
-    st.markdown("[📁 Dysk Google - Folder Główny](https://drive.google.com)") # Tutaj wkleisz swój link do Dysku
-    st.markdown("[📊 Dokumentacja Procedur](https://docs.google.com)")
+    st.markdown("📂 **Ważne Linki:**")
+    st.markdown("[📁 Dysk Google - Folder Główny](https://drive.google.com)")
