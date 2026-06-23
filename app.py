@@ -5,24 +5,86 @@ from streamlit_gsheets import GSheetsConnection
 # 1. KONFIGURACJA STRONY I STYLE
 st.set_page_config(page_title="Logistics Terminal", page_icon="✈️", layout="wide")
 
-# Wstrzyknięcie CSS dla zaokrąglonych kart i estetyki
+# Zaawansowany CSS - stylizacja zakładek i kart, dokładnie jak na zrzucie ekranu
 st.markdown("""
     <style>
-    div[data-testid="stVerticalBlock"] div[data-testid="stBorderBox"] {
-        border-radius: 10px;
-        background-color: #ffffff;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        padding: 15px;
-        transition: transform 0.2s;
+    /* Stylizacja samych kart */
+    .terminal-card {
+        background-color: white;
+        border-left: 6px solid #00205b; /* Granatowy akcent po lewej */
+        border-radius: 4px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 280px; /* Stała wysokość dla wyrównania rzędów */
+        margin-bottom: 20px;
     }
-    div[data-testid="stVerticalBlock"] div[data-testid="stBorderBox"]:hover {
-        transform: translateY(-2px);
-        border-color: #ff9800;
+    .terminal-card-category {
+        color: #ffa500;
+        font-weight: 800;
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 15px;
+    }
+    .terminal-card-title {
+        color: #00205b;
+        font-weight: 900;
+        font-size: 20px;
+        margin-bottom: 15px;
+        line-height: 1.2;
+    }
+    .terminal-card-desc {
+        color: #6b7280;
+        font-size: 13px;
+        font-family: monospace; /* Czcionka jak w kodzie źródłowym URL */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 3; /* Ucięcie po 3 linijkach */
+        -webkit-box-orient: vertical;
+        word-break: break-all;
+    }
+    .terminal-card-btn {
+        background-color: #ff9800;
+        color: #000000 !important;
+        font-weight: bold;
+        text-align: center;
+        text-decoration: none;
+        padding: 12px;
+        border-radius: 4px;
+        display: block;
+        width: 100%;
+        transition: background-color 0.2s;
+    }
+    .terminal-card-btn:hover {
+        background-color: #e68a00;
+        text-decoration: none;
+    }
+
+    /* Stylizacja zakładek (Tabs) na wzór interfejsu */
+    div[data-testid="stTabs"] button[aria-selected="true"] {
+        background-color: #00205b !important;
+        color: white !important;
+        border-radius: 6px 6px 0 0;
+        border-bottom: 3px solid #ff9800 !important;
+    }
+    div[data-testid="stTabs"] button[aria-selected="false"] {
+        background-color: white !important;
+        color: #00205b !important;
+        border-radius: 6px 6px 0 0;
+        border: 1px solid #e5e7eb;
+        border-bottom: none;
+    }
+    div[data-testid="stTabs"] button p {
+        font-weight: 600 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. BEZPIECZEŃSTWO (Hasło pobierane z Secrets)
+# 2. BEZPIECZEŃSTWO
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -37,22 +99,18 @@ if not st.session_state["authenticated"]:
         st.error("❌ Odmowa dostępu. Nieprawidłowy kod.")
     st.stop()
 
-# 3. POŁĄCZENIE Z BAZĄ (Google Sheets)
+# 3. POŁĄCZENIE Z BAZĄ
 conn = st.connection("gsheets", type=GSheetsConnection)
-
 NAZWA_ZAKLADKI_ZADANIA = "Arkusz1" 
 NAZWA_ZAKLADKI_LINKI = "Linki"
 
 try:
-    # Pobieranie Zadań
     df_tasks = conn.read(worksheet=NAZWA_ZAKLADKI_ZADANIA, ttl=0)
     df_tasks = df_tasks.dropna(subset=["Temat", "Zadanie"]) 
     
-    # Pobieranie Linków
     df_links = conn.read(worksheet=NAZWA_ZAKLADKI_LINKI, ttl=0)
     df_links = df_links.dropna(how="all") 
     
-    # Zabezpieczenie typów danych dla bazy linków
     for col in ["Nazwa", "URL", "Opis", "Kategoria"]:
         if col not in df_links.columns:
             df_links[col] = ""
@@ -68,7 +126,6 @@ with st.sidebar:
     st.markdown("---")
     st.write("**Nawigacja terminala:**")
     
-    # Wybór modułu jako Radio Buttons (jak na Twoim screenie)
     widok = st.radio("Wybierz moduł:", [
         "🛫 Tablica Odlotów (Zadania)", 
         "🌐 Odprawa (Główny Hub)", 
@@ -95,22 +152,15 @@ if widok == "🛫 Tablica Odlotów (Zadania)":
         col1.metric("Wszystkie operacje", len(df_tasks))
         col2.metric("W toku", len(df_tasks[df_tasks["Status"] == "W trakcie"]))
         col3.metric("Oczekujące", len(df_tasks[df_tasks["Status"] == "Do zrobienia"]))
-        st.info("💡 Przejdź do konkretnej zakładki powyżej, aby edytować statusy. Zmiany wysyłane są bezpośrednio do centrali (Google Sheets).")
 
     for i, temat in enumerate(lista_tematow):
         with zakladki_zadania[i+1]:
-            st.markdown(f"### Operacja: **{temat}**")
-            
             idx_tematu = df_tasks.index[df_tasks["Temat"] == temat]
             df_filtrowane = df_tasks.loc[idx_tematu].copy()
             
             edytowane_dane = st.data_editor(
-                df_filtrowane,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Status": st.column_config.SelectboxColumn("Status", options=["Do zrobienia", "W trakcie", "Zrobione"], required=True)
-                },
+                df_filtrowane, use_container_width=True, hide_index=True,
+                column_config={"Status": st.column_config.SelectboxColumn("Status", options=["Do zrobienia", "W trakcie", "Zrobione"], required=True)},
                 key=f"editor_{temat}"
             )
             
@@ -129,18 +179,15 @@ if widok == "🛫 Tablica Odlotów (Zadania)":
 elif widok == "🌐 Odprawa (Główny Hub)":
     st.title("✈️ Główny Hub Nawigacyjny")
     
-    # Wyszukiwarka
     szukana_fraza = st.text_input("🔍 Wyszukiwarka operacyjna (targi, portale, spedycje, awizacje):", placeholder="Wpisz szukaną frazę...")
     st.divider()
     
-    # Filtrowanie danych po wyszukiwarce
     if szukana_fraza:
         mask = df_links.apply(lambda row: row.astype(str).str.contains(szukana_fraza, case=False).any(), axis=1)
         df_wyswietlane = df_links[mask]
     else:
         df_wyswietlane = df_links
 
-    # Tworzenie dynamicznych zakładek z Kategorii z Google Sheets
     kategorie = ["🌐 Cała Sieć Operacyjna"] + sorted([k for k in df_links["Kategoria"].unique() if k.strip()])
     zakladki_linki = st.tabs(kategorie)
     
@@ -154,30 +201,34 @@ elif widok == "🌐 Odprawa (Główny Hub)":
             if df_kat.empty:
                 st.write("Brak systemów w tej kategorii.")
             else:
-                # Wyświetlanie linków jako kafelków (po 3 w rzędzie)
                 kolumny = st.columns(3)
                 for index, row in df_kat.reset_index(drop=True).iterrows():
                     with kolumny[index % 3]:
-                        with st.container(border=True):
-                            nazwa_kat = row['Kategoria'].upper() if row['Kategoria'] else "OGÓLNE"
-                            st.caption(f"✈️ {nazwa_kat}")
-                            st.markdown(f"#### {row['Nazwa']}")
-                            
-                            # Obcinamy opis jeśli jest za długi
-                            opis = row['Opis']
-                            st.write(opis if len(opis) < 80 else opis[:80] + "...")
-                            
-                            # Przycisk przenoszący do URL
-                            if row['URL'].startswith('http'):
-                                st.link_button("Uruchom procedurę ➔", row['URL'], use_container_width=True)
-                            else:
-                                st.button("Brak adresu URL", disabled=True, key=f"btn_{index}_{kategoria}", use_container_width=True)
+                        
+                        nazwa_kat = row['Kategoria'].upper() if row['Kategoria'] else "OGÓLNE"
+                        # Jeśli opis jest pusty, wyświetlamy URL (jak na Twoim zrzucie)
+                        opis_tekst = row['Opis'] if row['Opis'] else row['URL']
+                        url = row['URL'] if row['URL'].startswith('http') else '#'
+                        
+                        # Generowanie HTML dla pojedynczej karty
+                        karta_html = f"""
+                        <div class="terminal-card">
+                            <div>
+                                <div class="terminal-card-category">✈️ {nazwa_kat}</div>
+                                <div class="terminal-card-title">{row['Nazwa']}</div>
+                                <div class="terminal-card-desc">{opis_tekst}</div>
+                            </div>
+                            <a href="{url}" target="_blank" class="terminal-card-btn">Uruchom procedurę ➔</a>
+                        </div>
+                        """
+                        # Renderowanie karty w Streamlit
+                        st.markdown(karta_html, unsafe_allow_html=True)
 
 # ==========================================
 # WIDOK 3: HANGAR (Moduł CRUD dla Linków)
 # ==========================================
 elif widok == "🛠️ Hangar (Edycja Linków)":
-    st.title("🛠️ Hangar – Modyfikacja Baz i Systemów")
+    st.title("🛠️ Hangar – Modyfikacja Baz")
     st.write("W tym module możesz dodawać nowe kafelki do Głównego Huba, edytować istniejące lub je usuwać. **Zjedź na dół tabeli, aby dodać nowy wiersz.** Pamiętaj, aby na koniec kliknąć Zapisz.")
     
     edytowane_linki = st.data_editor(
