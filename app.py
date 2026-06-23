@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. BLOKADA HASŁEM
+# 2. BLOKADA HASŁEM (Pobierane z Secrets)
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -42,14 +42,20 @@ try:
     
     # Pobieranie linków
     df_links = conn.read(worksheet=NAZWA_ZAKLADKI_LINKI, ttl=0)
-    df_links = df_links.dropna(how="all") # Usuwa wiersze, które są całkowicie puste
+    df_links = df_links.dropna(how="all") 
+    
+    # NAPRAWA BŁĘDU Z TYPAMI DANYCH DLA LINKÓW
+    for col in ["Nazwa", "URL", "Opis"]:
+        if col not in df_links.columns:
+            df_links[col] = ""
+        df_links[col] = df_links[col].fillna("").astype(str)
+        
 except Exception as e:
     st.error(f"⚠️ Błąd połączenia z arkuszem Google Sheets: {e}")
     st.stop()
 
 # 5. STRUKTURA ZAKŁADEK
 lista_tematow = sorted(df_tasks["Temat"].unique().tolist())
-# Dodajemy moduł linków na początku
 nazwy_zakladek = ["🚨 PODSUMOWANIE", "🔗 WAŻNE LINKI"] + lista_tematow
 
 zakladki = st.tabs(nazwy_zakladek)
@@ -74,7 +80,6 @@ with zakladki[1]:
     st.header("🔗 Baza ważnych linków")
     st.write("Tutaj możesz dodawać nowe systemy, linki do bookowania slotów i inne narzędzia. Aby dodać wiersz, zjedź na dół tabeli. Aby usunąć, zaznacz wiersz po lewej stronie i naciśnij `Delete` na klawiaturze (lub ikonę kosza na telefonie).")
     
-    # Edytor z funkcją num_rows="dynamic" pozwala na dodawanie i usuwanie wierszy!
     edytowane_linki = st.data_editor(
         df_links,
         use_container_width=True,
@@ -90,7 +95,6 @@ with zakladki[1]:
         key="editor_linki"
     )
     
-    # Zapisywanie linków do arkusza "Linki"
     if st.button("💾 Zapisz zmiany w linkach", type="primary"):
         with st.spinner("Aktualizowanie bazy linków..."):
             conn.update(worksheet=NAZWA_ZAKLADKI_LINKI, data=edytowane_linki)
@@ -100,7 +104,6 @@ with zakladki[1]:
 
 # --- POZOSTAŁE ZAKŁADKI TEMATYCZNE Z ZADANIAMI ---
 for i, temat in enumerate(lista_tematow):
-    # i+2 ponieważ mamy już dwie stałe zakładki (Podsumowanie i Linki)
     with zakladki[i+2]:
         st.header(f"Zarządzanie: {temat}")
         
