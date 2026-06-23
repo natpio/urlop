@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. BLOKADA HASŁEM (Pobierane bezpiecznie z Secrets)
+# 2. BLOKADA HASŁEM
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -26,29 +26,35 @@ if not st.session_state["authenticated"]:
 
 # 3. TYTUŁ I NAGŁÓWEK
 st.title("📋 Handover Hub – Interaktywny Panel")
-st.subheader("Wszystkie kluczowe tematy na czas urlopu. Zmieniaj statusy, a zapiszą się w arkuszu.")
+st.subheader("Wszystkie kluczowe tematy i linki na czas urlopu.")
 st.divider()
 
 # 4. NAWIĄZANIE POŁĄCZENIA Z GOOGLE SHEETS
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Zmień "Arkusz1" na nazwę zakładki w Twoim pliku Google Sheets (na samym dole arkusza)
-NAZWA_ZAKLADKI = "Arkusz1" 
+NAZWA_ZAKLADKI_ZADANIA = "Arkusz1" 
+NAZWA_ZAKLADKI_LINKI = "Linki"
 
 try:
-    df_tasks = conn.read(worksheet=NAZWA_ZAKLADKI, ttl=0)
+    # Pobieranie zadań
+    df_tasks = conn.read(worksheet=NAZWA_ZAKLADKI_ZADANIA, ttl=0)
     df_tasks = df_tasks.dropna(subset=["Temat", "Zadanie"]) 
+    
+    # Pobieranie linków
+    df_links = conn.read(worksheet=NAZWA_ZAKLADKI_LINKI, ttl=0)
+    df_links = df_links.dropna(how="all") # Usuwa wiersze, które są całkowicie puste
 except Exception as e:
     st.error(f"⚠️ Błąd połączenia z arkuszem Google Sheets: {e}")
     st.stop()
 
-# 5. DYNAMICZNE ZAKŁADKI
+# 5. STRUKTURA ZAKŁADEK
 lista_tematow = sorted(df_tasks["Temat"].unique().tolist())
-nazwy_zakladek = ["🚨 PODSUMOWANIE"] + lista_tematow
+# Dodajemy moduł linków na początku
+nazwy_zakladek = ["🚨 PODSUMOWANIE", "🔗 WAŻNE LINKI"] + lista_tematow
 
 zakladki = st.tabs(nazwy_zakladek)
 
-# --- Zakładka Podsumowania ---
+# --- ZAKŁADKA 0: PODSUMOWANIE ---
 with zakladki[0]:
     st.header("Metryki i Statystyki")
     col1, col2, col3 = st.columns(3)
@@ -58,14 +64,44 @@ with zakladki[0]:
     
     st.markdown("""
     ### 📅 Jak korzystać z aplikacji:
-    1. Każdy ważny temat (np. konkretny event lub projekt) ma powyżej **swoją własną zakładkę**.
-    2. Jeśli wykonasz zadanie, zmień jego status w odpowiedniej zakładce i kliknij **Zapisz zmiany**.
-    3. Zmiana zostanie automatycznie wysłana do arkusza bazy.
+    1. Każdy ważny temat ma powyżej **swoją własną zakładkę**.
+    2. W zakładce **WAŻNE LINKI** znajdziesz i dodasz dostępy do innych systemów.
+    3. Edytuj tabele i zawsze pamiętaj o kliknięciu **Zapisz zmiany**.
     """)
 
-# --- Dynamiczne Zakładki Tematyczne z funkcją EDYCJI ---
+# --- ZAKŁADKA 1: MODUŁ WAŻNYCH LINKÓW (CRUD) ---
+with zakladki[1]:
+    st.header("🔗 Baza ważnych linków")
+    st.write("Tutaj możesz dodawać nowe systemy, linki do bookowania slotów i inne narzędzia. Aby dodać wiersz, zjedź na dół tabeli. Aby usunąć, zaznacz wiersz po lewej stronie i naciśnij `Delete` na klawiaturze (lub ikonę kosza na telefonie).")
+    
+    # Edytor z funkcją num_rows="dynamic" pozwala na dodawanie i usuwanie wierszy!
+    edytowane_linki = st.data_editor(
+        df_links,
+        use_container_width=True,
+        num_rows="dynamic",
+        hide_index=True,
+        column_config={
+            "URL": st.column_config.LinkColumn(
+                "Link docelowy (URL)",
+                help="Wklej pełny adres, np. https://...",
+                max_chars=200
+            )
+        },
+        key="editor_linki"
+    )
+    
+    # Zapisywanie linków do arkusza "Linki"
+    if st.button("💾 Zapisz zmiany w linkach", type="primary"):
+        with st.spinner("Aktualizowanie bazy linków..."):
+            conn.update(worksheet=NAZWA_ZAKLADKI_LINKI, data=edytowane_linki)
+            st.cache_data.clear()
+            st.success("✅ Baza linków została zaktualizowana!")
+            st.rerun()
+
+# --- POZOSTAŁE ZAKŁADKI TEMATYCZNE Z ZADANIAMI ---
 for i, temat in enumerate(lista_tematow):
-    with zakladki[i+1]:
+    # i+2 ponieważ mamy już dwie stałe zakładki (Podsumowanie i Linki)
+    with zakladki[i+2]:
         st.header(f"Zarządzanie: {temat}")
         
         idx_tematu = df_tasks.index[df_tasks["Temat"] == temat]
@@ -87,19 +123,18 @@ for i, temat in enumerate(lista_tematow):
             key=f"editor_{temat}"
         )
         
-        # 6. ZAPISYWANIE DANYCH
         if st.button(f"Zapisz zmiany w: {temat}", type="primary"):
             with st.spinner("Zapisywanie..."):
                 for col in edytowane_dane.columns:
                     df_tasks.loc[idx_tematu, col] = edytowane_dane[col].values
                 
-                conn.update(worksheet=NAZWA_ZAKLADKI, data=df_tasks)
+                conn.update(worksheet=NAZWA_ZAKLADKI_ZADANIA, data=df_tasks)
                 
                 st.cache_data.clear()
                 st.success("✅ Zmiany pomyślnie zapisane!")
                 st.rerun()
 
-# 7. STAŁY PANEL BOCZNY (Tylko najpilniejsze kontakty)
+# 6. STAŁY PANEL BOCZNY
 with st.sidebar:
     st.header("☎️ Sytuacje Awaryjne")
     st.error("**JEŚLI COŚ SIĘ PALI:**\n\n1. Kontaktuj się z Janem (Zastępca): +48 999 888 777.\n2. Do mnie dzwoń tylko, jeśli sytuacja jest krytyczna.")
