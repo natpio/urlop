@@ -67,7 +67,7 @@ try:
     for df, cols in [
         (df_tasks, ["Temat", "Zadanie", "Osoba", "Termin", "Status", "Notatki"]),
         (df_links, ["Nazwa", "URL", "Opis", "Kategoria"]),
-        (df_carriers, ["Firma", "Kontakt", "Telefon", "Typ_Auta", "Uwagi"]),
+        (df_carriers, ["Firma", "Adres", "NIP", "Kontakt", "Telefon", "Typ_Auta", "Uwagi"]),
         (df_notes, ["Data", "Kto", "Wiadomość"]),
         (df_miejsca, ["Nazwa do listy", "Nazwa pełna / Firma", "Ulica i numer", "Kod pocztowy", "Miasto", "Kraj"])
     ]:
@@ -91,7 +91,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 4. FUNKCJE BIZNESOWE
+# 4. FUNKCJE BIZNESOWE (Gantt, Radar, Czystość)
 # ==========================================
 def clean_for_gsheets(df):
     cleaned = df.copy()
@@ -329,7 +329,7 @@ if nav_mode == "🌍 Hub Operacyjny":
         with tab3:
             cols_c = st.columns(3)
             for index, row in df_carriers[df_carriers["Firma"].str.strip() != ""].reset_index(drop=True).iterrows():
-                with cols_c[index % 3]: st.markdown(f"""<div class="terminal-card" style="min-height: 220px;"><div><div class="terminal-card-category">🚛 {row.get('Typ_Auta', 'Typ Nieznany')}</div><div class="terminal-card-title">{row['Firma']}</div><div class="terminal-card-desc"><strong>📞 Tel:</strong> {row.get('Telefon', '---')}<br><strong>👤 Kontakt:</strong> {row.get('Kontakt', '---')}<br><br><i>{row.get('Uwagi', '')}</i></div></div></div>""", unsafe_allow_html=True)
+                with cols_c[index % 3]: st.markdown(f"""<div class="terminal-card" style="min-height: 220px;"><div><div class="terminal-card-category">🚛 {row.get('Typ_Auta', 'Typ Nieznany')}</div><div class="terminal-card-title">{row['Firma']}</div><div class="terminal-card-desc"><strong>📍 Adres:</strong> {row.get('Adres', '---')}<br><strong>🏢 NIP:</strong> {row.get('NIP', '---')}<br><strong>📞 Tel:</strong> {row.get('Telefon', '---')}<br><strong>👤 Kontakt:</strong> {row.get('Kontakt', '---')}<br><br><i>{row.get('Uwagi', '')}</i></div></div></div>""", unsafe_allow_html=True)
         with tab4:
             df_links_clean = df_links[df_links["Kategoria"].str.strip() != ""]
             for kategoria in sorted(df_links_clean["Kategoria"].unique().tolist()):
@@ -407,7 +407,6 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                 try: val_c_auto = uwagi_baza.split("AUTO: ")[1].split(" ||")[0]
                 except: pass
             
-            # Wczytywanie wartości towaru z kompatybilnością wsteczną (EUR lub PLN)
             if "WART: " in uwagi_baza:
                 try: val_wartosc_towaru = int(uwagi_baza.split("WART: ")[1].split(" EUR")[0])
                 except: 
@@ -419,11 +418,11 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                 if len(parts) >= 4: val_instrukcje = parts[3]
                 elif len(parts) == 3 and "CYKL:" not in parts[2]: val_instrukcje = parts[2]
             
-            # Rozpoznanie źródła przewoźnika
+            # Wczytywanie detali ze zaktualizowanej bazy przewoźników
             r_p = df_carriers[df_carriers['Firma'] == val_nazwa_przewoznika]
             if not r_p.empty:
                 r = r_p.iloc[0]
-                val_detale_przewoznika = f"{str(r.get('Firma', ''))}\nTel: {str(r.get('Telefon', ''))}\n{str(r.get('Uwagi', ''))}".strip()
+                val_detale_przewoznika = f"{str(r.get('Firma', ''))}\n{str(r.get('Adres', ''))}\nNIP: {str(r.get('NIP', ''))}\nTel: {str(r.get('Telefon', ''))} | {str(r.get('Kontakt', ''))}".strip()
                 val_zrodlo = "Przewoźnik z bazy"
             else:
                 val_zrodlo = "Przewoźnik z giełdy"
@@ -444,8 +443,6 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
 
     with st.container(border=True):
         st.markdown("#### 2. Przewoźnik i Koszty")
-        
-        # Wybór źródła
         zrodlo_idx = ["Przewoźnik z bazy", "Przewoźnik z giełdy"].index(val_zrodlo) if val_zrodlo in ["Przewoźnik z bazy", "Przewoźnik z giełdy"] else 0
         zrodlo = st.radio("Źródło przewoźnika:", ["Przewoźnik z bazy", "Przewoźnik z giełdy"], index=zrodlo_idx, horizontal=True)
         
@@ -462,14 +459,15 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                 r_p = df_carriers[df_carriers['Firma'] == nazwa_przewoznika]
                 if not r_p.empty:
                     r = r_p.iloc[0]
-                    detale_przewoznika = f"{str(r.get('Firma', ''))}\nTel: {str(r.get('Telefon', ''))}\nKontakt: {str(r.get('Kontakt', ''))}".strip()
+                    # Dynamiczne pobieranie nowego Adresu i NIP do PDF
+                    detale_przewoznika = f"{str(r.get('Firma', ''))}\n{str(r.get('Adres', ''))}\nNIP: {str(r.get('NIP', ''))}\nTel: {str(r.get('Telefon', ''))} | {str(r.get('Kontakt', ''))}".strip()
                 else: detale_przewoznika = nazwa_przewoznika
             else: detale_przewoznika = ""
             
             stawka_final = f2.number_input("Cena Total:", value=float(val_stawka_final))
             waluta = f3.selectbox("Waluta:", ["EUR", "PLN"], index=(["EUR", "PLN"].index(val_waluta) if val_waluta in ["EUR", "PLN"] else 0))
             
-        else: # Przewoźnik z giełdy
+        else:
             nazwa_przewoznika = st.text_input("Nazwa firmy z giełdy:", value=val_nazwa_przewoznika if val_zrodlo == "Przewoźnik z giełdy" else "")
             detale_przewoznika = st.text_area("Pełne dane (Adres, NIP, Kontakt):", value=val_detale_przewoznika if val_zrodlo == "Przewoźnik z giełdy" else "", placeholder="Wklej pełne dane przewoźnika do zamówienia...")
             f1, f2 = st.columns(2)
@@ -491,7 +489,6 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
         st.markdown("#### 4. Realizacja i Uwagi")
         d_auto, d_wart = st.columns(2)
         c_auto = d_auto.text_input("Auto / Kierowca:", value=val_c_auto, placeholder="np. PO 12345 / Jan Kowalski")
-        # Zmiana z PLN na EUR
         wartosc_towaru = d_wart.number_input("Wartość towaru (EUR):", min_value=0, value=val_wartosc_towaru)
         u1, u2 = st.columns([3, 1])
         instrukcje = u1.text_area("Instrukcje dodatkowe:", value=val_instrukcje, height=80)
@@ -521,8 +518,6 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                 full_roz_pdf = build_full_address(r_s, r_m, df_miejsca)
                 
                 historia_cyklu = f"CYKL: {data_zal} -> {data_roz}" + (f" | EMP: {data_emp_in} | POWRÓT: {data_emp_out}" if typ_zlecenia == "Pełny event" else "")
-                
-                # Zapis z tagiem EUR zamiast PLN
                 pelne_uwagi_db = f"AUTO: {c_auto} || WART: {wartosc_towaru} EUR || {historia_cyklu} || {instrukcje}"
                 uwagi_na_pdf = f"VEHICLE/DRIVER: {c_auto}\n{instrukcje}"
                 
