@@ -4,17 +4,16 @@ from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 
 # ==========================================
-# 1. KONFIGURACJA STRONY I ŁADOWANIE CSS
+# 1. KONFIGURACJA STRONY I CSS
 # ==========================================
 st.set_page_config(page_title="Global Logistics Hub", page_icon="✈️", layout="wide")
 
 def local_css(file_name):
-    """Funkcja wczytująca zewnętrzny plik CSS z designem United Airlines"""
     try:
         with open(file_name) as f:
             st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
     except FileNotFoundError:
-        st.warning(f"Brak pliku {file_name}. Upewnij się, że wgrałeś go na GitHub.")
+        pass
 
 local_css("style.css")
 
@@ -46,12 +45,11 @@ if not st.session_state["role"]:
     st.stop()
 
 # ==========================================
-# 3. POŁĄCZENIE Z BAZĄ DANYCH (Z CACHE TTL=60)
+# 3. POŁĄCZENIE Z BAZĄ DANYCH
 # ==========================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # Użycie ttl=60 (sekund) zapobiega błędowi "Quota exceeded" z API Google
     df_tasks = conn.read(worksheet="Arkusz1", ttl=60).dropna(how="all")
     df_links = conn.read(worksheet="Linki", ttl=60).dropna(how="all")
     df_carriers = conn.read(worksheet="Przewoznicy", ttl=60).dropna(how="all")
@@ -64,7 +62,6 @@ try:
     cols_schedule = ["Event", "Auto", "1_Zaladunek", "2_Montaz_Od", "2_Montaz_Do", "3_Puste_Casy_1", "3_Puste_Casy_2", "4_Dzien_Klienta", "5_Dostawa_Pustych", "6_Odbior_Pelnych", "7_Rozladunek"]
     cols_notes = ["Data", "Kto", "Wiadomość"]
     
-    # Wymuszanie typów danych (Zabezpieczenie przed błędami Streamlit)
     for col in cols_tasks: 
         if col not in df_tasks.columns: df_tasks[col] = ""
         df_tasks[col] = df_tasks[col].fillna("").astype(str)
@@ -90,7 +87,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 4. LOGIKA GANTTA
+# 4. FUNKCJE POMOCNICZE (LOGIKA BIZNESOWA)
 # ==========================================
 def get_current_stage(row):
     today = datetime.now().date()
@@ -105,6 +102,13 @@ def get_current_stage(row):
     if current_stage == 0 and pd.notnull(stages_dates[0]):
         current_stage = 1
     return current_stage
+
+def clean_for_gsheets(df):
+    """Zabezpiecza puste daty i nulle przed wysłaniem do Google Sheets"""
+    cleaned = df.copy()
+    for col in cleaned.columns:
+        cleaned[col] = cleaned[col].astype(str).replace(['NaT', 'nan', 'None', '<NA>', 'NaN'], '')
+    return cleaned
 
 # ==========================================
 # 5. WSPÓLNY PANEL BOCZNY (SIDEBAR)
@@ -139,23 +143,31 @@ if st.session_state["role"] == "admin":
         edytowane_zadania = st.data_editor(df_tasks, num_rows="dynamic", use_container_width=True, hide_index=True,
                                            column_config={"Status": st.column_config.SelectboxColumn(options=["Do zrobienia", "W trakcie", "Zrobione"])})
         if st.button("🛫 Wgraj aktualizację zadań", type="primary"):
-            conn.update(worksheet="Arkusz1", data=edytowane_zadania); st.cache_data.clear(); st.rerun()
+            with st.spinner("Przesyłanie do chmury..."):
+                conn.update(worksheet="Arkusz1", data=clean_for_gsheets(edytowane_zadania))
+                st.cache_data.clear(); st.rerun()
 
     with tab_a2:
         date_cols_config = {col: st.column_config.DateColumn(col, format="YYYY-MM-DD") for col in cols_schedule if col not in ["Event", "Auto"]}
         edytowane_harm = st.data_editor(df_schedule, num_rows="dynamic", use_container_width=True, hide_index=True, column_config=date_cols_config)
         if st.button("🛫 Wgraj aktualizację harmonogramu", type="primary"):
-            conn.update(worksheet="Harmonogram", data=edytowane_harm); st.cache_data.clear(); st.rerun()
+            with st.spinner("Przesyłanie do chmury..."):
+                conn.update(worksheet="Harmonogram", data=clean_for_gsheets(edytowane_harm))
+                st.cache_data.clear(); st.rerun()
 
     with tab_a3:
         edytowane_przewoz = st.data_editor(df_carriers, num_rows="dynamic", use_container_width=True, hide_index=True)
         if st.button("🛫 Wgraj aktualizację floty", type="primary"):
-            conn.update(worksheet="Przewoznicy", data=edytowane_przewoz); st.cache_data.clear(); st.rerun()
+            with st.spinner("Przesyłanie do chmury..."):
+                conn.update(worksheet="Przewoznicy", data=clean_for_gsheets(edytowane_przewoz))
+                st.cache_data.clear(); st.rerun()
 
     with tab_a4:
         edytowane_linki = st.data_editor(df_links, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn()})
         if st.button("🛫 Wgraj aktualizację systemów", type="primary"):
-            conn.update(worksheet="Linki", data=edytowane_linki); st.cache_data.clear(); st.rerun()
+            with st.spinner("Przesyłanie do chmury..."):
+                conn.update(worksheet="Linki", data=clean_for_gsheets(edytowane_linki))
+                st.cache_data.clear(); st.rerun()
 
     with tab_a5:
         st.subheader("Wspólny Logbook (Notatnik)")
@@ -168,7 +180,9 @@ if st.session_state["role"] == "admin":
             }
         )
         if st.button("🛫 Prześlij Notatki do Bazy", type="primary"):
-            conn.update(worksheet="Notatnik", data=edytowane_notatki); st.cache_data.clear(); st.rerun()
+            with st.spinner("Przesyłanie do chmury..."):
+                conn.update(worksheet="Notatnik", data=clean_for_gsheets(edytowane_notatki))
+                st.cache_data.clear(); st.rerun()
 
 # =====================================================================
 # WIDOK 2: ZESPÓŁ (Widok Operacyjny)
@@ -319,6 +333,6 @@ elif st.session_state["role"] == "team":
             }
         )
         if st.button("📡 Wyślij Notatkę do Bazy", type="primary"):
-            conn.update(worksheet="Notatnik", data=edytowane_notatki_team)
-            st.cache_data.clear()
-            st.rerun()
+            with st.spinner("Przesyłanie do chmury..."):
+                conn.update(worksheet="Notatnik", data=clean_for_gsheets(edytowane_notatki_team))
+                st.cache_data.clear(); st.rerun()
