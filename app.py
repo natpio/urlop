@@ -9,12 +9,12 @@ from datetime import datetime
 st.set_page_config(page_title="Global Logistics Hub", page_icon="✈️", layout="wide")
 
 def local_css(file_name):
-    """Funkcja wczytująca zewnętrzny plik CSS"""
+    """Funkcja wczytująca zewnętrzny plik CSS z designem United Airlines"""
     try:
         with open(file_name) as f:
             st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
     except FileNotFoundError:
-        st.warning(f"Brak pliku {file_name}. Kontynuuję bez stylów premium.")
+        st.warning(f"Brak pliku {file_name}. Upewnij się, że wgrałeś go na GitHub.")
 
 local_css("style.css")
 
@@ -55,12 +55,15 @@ try:
     df_links = conn.read(worksheet="Linki", ttl=0).dropna(how="all")
     df_carriers = conn.read(worksheet="Przewoznicy", ttl=0).dropna(how="all")
     df_schedule = conn.read(worksheet="Harmonogram", ttl=0).dropna(how="all")
+    df_notes = conn.read(worksheet="Notatnik", ttl=0).dropna(how="all") # NOWY MODUŁ
     
     cols_tasks = ["Temat", "Zadanie", "Osoba", "Termin", "Status", "Notatki"]
     cols_links = ["Nazwa", "URL", "Opis", "Kategoria"]
     cols_carriers = ["Firma", "Kontakt", "Telefon", "Typ_Auta", "Uwagi"]
     cols_schedule = ["Event", "Auto", "1_Zaladunek", "2_Montaz_Od", "2_Montaz_Do", "3_Puste_Casy_1", "3_Puste_Casy_2", "4_Dzien_Klienta", "5_Dostawa_Pustych", "6_Odbior_Pelnych", "7_Rozladunek"]
+    cols_notes = ["Data", "Kto", "Wiadomość"] # NOWY MODUŁ
     
+    # Wymuszanie typów danych (Zabezpieczenie przed błędami Streamlit)
     for col in cols_tasks: 
         if col not in df_tasks.columns: df_tasks[col] = ""
         df_tasks[col] = df_tasks[col].fillna("").astype(str)
@@ -70,6 +73,10 @@ try:
     for col in cols_carriers: 
         if col not in df_carriers.columns: df_carriers[col] = ""
         df_carriers[col] = df_carriers[col].fillna("").astype(str)
+    for col in cols_notes: 
+        if col not in df_notes.columns: df_notes[col] = ""
+        df_notes[col] = df_notes[col].fillna("").astype(str)
+        
     for col in cols_schedule: 
         if col not in df_schedule.columns: df_schedule[col] = None
         if col not in ["Event", "Auto"]:
@@ -102,7 +109,7 @@ def get_current_stage(row):
 # 5. WSPÓLNY PANEL BOCZNY (SIDEBAR)
 # ==========================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=60) # Ikona globusa/sieci
+    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=60)
     st.markdown("<br>", unsafe_allow_html=True)
     if st.session_state["role"] == "admin":
         st.success("👨‍✈️ STATUS: CAPTAIN (ADMIN)")
@@ -121,11 +128,11 @@ if st.session_state["role"] == "admin":
     st.markdown("""
         <div class="aviation-banner">
             <h1>⚙️ FLIGHT DECK (CMS)</h1>
-            <p>Zarządzanie infrastrukturą, zadaniami i flotą logistyczną.</p>
+            <p>Zarządzanie infrastrukturą, zadaniami, flotą i logbookiem.</p>
         </div>
     """, unsafe_allow_html=True)
     
-    tab_a1, tab_a2, tab_a3, tab_a4 = st.tabs(["📋 REJESTR ZADAŃ", "📅 HARMONOGRAM EVENTÓW", "🚚 ZARZĄDZANIE FLOTĄ", "🔗 BAZA SYSTEMÓW"])
+    tab_a1, tab_a2, tab_a3, tab_a4, tab_a5 = st.tabs(["📋 REJESTR ZADAŃ", "📅 HARMONOGRAM", "🚚 FLOTA", "🔗 SYSTEMY", "📝 SZYBKI NOTATNIK"])
     
     with tab_a1:
         edytowane_zadania = st.data_editor(df_tasks, num_rows="dynamic", use_container_width=True, hide_index=True,
@@ -145,10 +152,23 @@ if st.session_state["role"] == "admin":
             conn.update(worksheet="Przewoznicy", data=edytowane_przewoz); st.cache_data.clear(); st.rerun()
 
     with tab_a4:
-        edytowane_linki = st.data_editor(df_links, num_rows="dynamic", use_container_width=True, hide_index=True,
-                                         column_config={"URL": st.column_config.LinkColumn()})
+        edytowane_linki = st.data_editor(df_links, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn()})
         if st.button("🛫 Wgraj aktualizację systemów", type="primary"):
             conn.update(worksheet="Linki", data=edytowane_linki); st.cache_data.clear(); st.rerun()
+
+    # --- NOWY MODUŁ (ADMIN) ---
+    with tab_a5:
+        st.subheader("Wspólny Logbook (Notatnik)")
+        st.write("Tu możesz zostawiać pilne wiadomości dla zespołu i czytać ich wrzutki.")
+        edytowane_notatki = st.data_editor(
+            df_notes, num_rows="dynamic", use_container_width=True, hide_index=True,
+            column_config={
+                "Data": st.column_config.TextColumn("Data/Godzina", default=datetime.now().strftime("%d.%m %H:%M")),
+                "Wiadomość": st.column_config.TextColumn("Treść Wiadomości", width="large")
+            }
+        )
+        if st.button("🛫 Prześlij Notatki do Bazy", type="primary"):
+            conn.update(worksheet="Notatnik", data=edytowane_notatki); st.cache_data.clear(); st.rerun()
 
 # =====================================================================
 # WIDOK 2: ZESPÓŁ (Widok Operacyjny)
@@ -160,7 +180,7 @@ elif st.session_state["role"] == "team":
         st.markdown("""
             <div class="aviation-banner">
                 <h1>🌐 GLOBAL OPERATIONS HUB</h1>
-                <p>Bieżący monitoring statusów logistycznych i zadań</p>
+                <p>Bieżący monitoring statusów logistycznych i komunikacja</p>
             </div>
         """, unsafe_allow_html=True)
     with colB: 
@@ -169,7 +189,7 @@ elif st.session_state["role"] == "team":
         if st.button("🔄 POBIERZ DANE", use_container_width=True): 
             st.cache_data.clear(); st.rerun()
 
-    tab1, tab2, tab3, tab4 = st.tabs(["🚦 MONITOR EVENTÓW", "📋 KANBAN BOARD", "🚚 FLOTA / PRZEWOŹNICY", "🔗 PORTALE ZEWNĘTRZNE"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🚦 MONITOR EVENTÓW", "📋 KANBAN BOARD", "🚚 FLOTA / PRZEWOŹNICY", "🔗 PORTALE", "📝 SZYBKI NOTATNIK"])
 
     # --- ZAKŁADKA 1: GANTT / STEPPER ---
     with tab1:
@@ -284,3 +304,22 @@ elif st.session_state["role"] == "team":
                         <a href="{url}" target="_blank" class="terminal-card-btn">Zainicjuj Połączenie ➔</a>
                     </div>
                     """, unsafe_allow_html=True)
+
+    # --- NOWY MODUŁ (ZESPÓŁ) ---
+    with tab5:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("Wspólny Logbook (Notatnik Operacyjny)")
+        st.info("Zjedź na dół tabeli, aby dodać pilną informację. Pamiętaj kliknąć 'Zapisz', aby wysłać powiadomienie do chmury.")
+        
+        # Udostępniamy zespołowi ten jeden edytor, by mogli wpisywać notatki
+        edytowane_notatki_team = st.data_editor(
+            df_notes, num_rows="dynamic", use_container_width=True, hide_index=True,
+            column_config={
+                "Data": st.column_config.TextColumn("Data/Godzina", default=datetime.now().strftime("%d.%m %H:%M")),
+                "Wiadomość": st.column_config.TextColumn("Treść Wiadomości", width="large")
+            }
+        )
+        if st.button("📡 Wyślij Notatkę do Bazy", type="primary"):
+            conn.update(worksheet="Notatnik", data=edytowane_notatki_team)
+            st.cache_data.clear()
+            st.rerun()
