@@ -46,22 +46,23 @@ if not st.session_state["role"]:
     st.stop()
 
 # ==========================================
-# 3. POŁĄCZENIE Z BAZĄ DANYCH
+# 3. POŁĄCZENIE Z BAZĄ DANYCH (Z CACHE TTL=60)
 # ==========================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    df_tasks = conn.read(worksheet="Arkusz1", ttl=0).dropna(how="all")
-    df_links = conn.read(worksheet="Linki", ttl=0).dropna(how="all")
-    df_carriers = conn.read(worksheet="Przewoznicy", ttl=0).dropna(how="all")
-    df_schedule = conn.read(worksheet="Harmonogram", ttl=0).dropna(how="all")
-    df_notes = conn.read(worksheet="Notatnik", ttl=0).dropna(how="all") # NOWY MODUŁ
+    # Użycie ttl=60 (sekund) zapobiega błędowi "Quota exceeded" z API Google
+    df_tasks = conn.read(worksheet="Arkusz1", ttl=60).dropna(how="all")
+    df_links = conn.read(worksheet="Linki", ttl=60).dropna(how="all")
+    df_carriers = conn.read(worksheet="Przewoznicy", ttl=60).dropna(how="all")
+    df_schedule = conn.read(worksheet="Harmonogram", ttl=60).dropna(how="all")
+    df_notes = conn.read(worksheet="Notatnik", ttl=60).dropna(how="all")
     
     cols_tasks = ["Temat", "Zadanie", "Osoba", "Termin", "Status", "Notatki"]
     cols_links = ["Nazwa", "URL", "Opis", "Kategoria"]
     cols_carriers = ["Firma", "Kontakt", "Telefon", "Typ_Auta", "Uwagi"]
     cols_schedule = ["Event", "Auto", "1_Zaladunek", "2_Montaz_Od", "2_Montaz_Do", "3_Puste_Casy_1", "3_Puste_Casy_2", "4_Dzien_Klienta", "5_Dostawa_Pustych", "6_Odbior_Pelnych", "7_Rozladunek"]
-    cols_notes = ["Data", "Kto", "Wiadomość"] # NOWY MODUŁ
+    cols_notes = ["Data", "Kto", "Wiadomość"]
     
     # Wymuszanie typów danych (Zabezpieczenie przed błędami Streamlit)
     for col in cols_tasks: 
@@ -156,7 +157,6 @@ if st.session_state["role"] == "admin":
         if st.button("🛫 Wgraj aktualizację systemów", type="primary"):
             conn.update(worksheet="Linki", data=edytowane_linki); st.cache_data.clear(); st.rerun()
 
-    # --- NOWY MODUŁ (ADMIN) ---
     with tab_a5:
         st.subheader("Wspólny Logbook (Notatnik)")
         st.write("Tu możesz zostawiać pilne wiadomości dla zespołu i czytać ich wrzutki.")
@@ -305,13 +305,12 @@ elif st.session_state["role"] == "team":
                     </div>
                     """, unsafe_allow_html=True)
 
-    # --- NOWY MODUŁ (ZESPÓŁ) ---
+    # --- ZAKŁADKA 5: SZYBKI NOTATNIK ---
     with tab5:
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("Wspólny Logbook (Notatnik Operacyjny)")
         st.info("Zjedź na dół tabeli, aby dodać pilną informację. Pamiętaj kliknąć 'Zapisz', aby wysłać powiadomienie do chmury.")
         
-        # Udostępniamy zespołowi ten jeden edytor, by mogli wpisywać notatki
         edytowane_notatki_team = st.data_editor(
             df_notes, num_rows="dynamic", use_container_width=True, hide_index=True,
             column_config={
