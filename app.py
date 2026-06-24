@@ -85,7 +85,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 4. FUNKCJE POMOCNICZE
+# 4. FUNKCJE POMOCNICZE I BIZNESOWE
 # ==========================================
 def get_current_stage(row):
     today = datetime.now().date()
@@ -106,6 +106,54 @@ def clean_for_gsheets(df):
     for col in cleaned.columns:
         cleaned[col] = cleaned[col].astype(str).replace(['NaT', 'nan', 'None', '<NA>', 'NaN'], '')
     return cleaned
+
+# === NOWA FUNKCJA: RENDEROWANIE LOGBOOKA ===
+def render_logbook(conn_obj, notes_dataframe):
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #002244; font-weight: 900;'>📡 Logbook (Komunikaty Operacyjne)</h3>", unsafe_allow_html=True)
+    
+    # Formularz nadawania (czyści się automatycznie po kliknięciu)
+    with st.form("logbook_form", clear_on_submit=True):
+        st.markdown("**Nadaj nowy komunikat do zespołu:**")
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            kto = st.text_input("Identyfikator (Kto nadaje):", placeholder="np. Janek")
+        with col2:
+            wiadomosc = st.text_area("Treść komunikatu:", placeholder="Wpisz pilną wiadomość...", height=68)
+        
+        submitted = st.form_submit_button("📡 Nadaj Komunikat")
+        
+        if submitted:
+            if kto.strip() == "" or wiadomosc.strip() == "":
+                st.warning("⚠️ Wypełnij oba pola przed wysłaniem!")
+            else:
+                nowy_wpis = pd.DataFrame([{
+                    "Data": datetime.now().strftime("%d.%m %H:%M"),
+                    "Kto": kto,
+                    "Wiadomość": wiadomosc
+                }])
+                updated_df = pd.concat([notes_dataframe, nowy_wpis], ignore_index=True)
+                
+                with st.spinner("Szyfrowanie i nadawanie komunikatu..."):
+                    conn_obj.update(worksheet="Notatnik", data=clean_for_gsheets(updated_df))
+                    st.cache_data.clear()
+                    st.rerun()
+
+    # Wyświetlanie historii (najnowsze na górze)
+    st.markdown("<hr style='margin: 30px 0; border-color: #E5E7EB;'>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #002244; font-weight: 900;'>📜 Dziennik Odbiorczy</h4>", unsafe_allow_html=True)
+    
+    df_notes_clean = notes_dataframe[notes_dataframe["Wiadomość"].str.strip() != ""]
+    
+    if df_notes_clean.empty:
+        st.info("Brak komunikatów w systemie.")
+    else:
+        # Pętla odwrócona (najnowsze wpisy wyświetlają się jako pierwsze)
+        for _, row in df_notes_clean.iloc[::-1].iterrows():
+            st.markdown(f"""<div style="background: white; border-left: 4px solid #FFB81C; padding: 15px; margin-bottom: 15px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+<div style="font-size: 11px; color: #6B7280; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">🕒 {row['Data']} &nbsp;•&nbsp; 👤 {row['Kto']}</div>
+<div style="font-size: 15px; color: #002244; line-height: 1.5; font-weight: 500;">{row['Wiadomość']}</div>
+</div>""", unsafe_allow_html=True)
 
 # ==========================================
 # 5. WSPÓLNY PANEL BOCZNY
@@ -132,7 +180,7 @@ if st.session_state["role"] == "admin":
 <p>Zarządzanie infrastrukturą, zadaniami, flotą i logbookiem.</p>
 </div>""", unsafe_allow_html=True)
     
-    tab_a1, tab_a2, tab_a3, tab_a4, tab_a5 = st.tabs(["📋 REJESTR ZADAŃ", "📅 HARMONOGRAM", "🚚 FLOTA", "🔗 SYSTEMY", "📝 SZYBKI NOTATNIK"])
+    tab_a1, tab_a2, tab_a3, tab_a4, tab_a5 = st.tabs(["📋 REJESTR ZADAŃ", "📅 HARMONOGRAM", "🚚 FLOTA", "🔗 SYSTEMY", "📝 LOGBOOK"])
     
     with tab_a1:
         edytowane_zadania = st.data_editor(df_tasks, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"Status": st.column_config.SelectboxColumn(options=["Do zrobienia", "W trakcie", "Zrobione"])})
@@ -164,19 +212,8 @@ if st.session_state["role"] == "admin":
                 st.cache_data.clear(); st.rerun()
 
     with tab_a5:
-        st.subheader("Wspólny Logbook (Notatnik)")
-        st.write("Tu możesz zostawiać pilne wiadomości dla zespołu i czytać ich wrzutki.")
-        edytowane_notatki = st.data_editor(
-            df_notes, num_rows="dynamic", use_container_width=True, hide_index=True,
-            column_config={
-                "Data": st.column_config.TextColumn("Data/Godzina", default=datetime.now().strftime("%d.%m %H:%M")),
-                "Wiadomość": st.column_config.TextColumn("Treść Wiadomości", width="large")
-            }
-        )
-        if st.button("🛫 Prześlij Notatki do Bazy", type="primary"):
-            with st.spinner("Przesyłanie do chmury..."):
-                conn.update(worksheet="Notatnik", data=clean_for_gsheets(edytowane_notatki))
-                st.cache_data.clear(); st.rerun()
+        # Odpalenie nowej super funkcji Logbooka
+        render_logbook(conn, df_notes)
 
 # =====================================================================
 # WIDOK 2: ZESPÓŁ (Widok Operacyjny)
@@ -195,7 +232,7 @@ elif st.session_state["role"] == "team":
         if st.button("🔄 POBIERZ DANE", use_container_width=True): 
             st.cache_data.clear(); st.rerun()
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🚦 MONITOR EVENTÓW", "📋 KANBAN BOARD", "🚚 FLOTA / PRZEWOŹNICY", "🔗 PORTALE", "📝 SZYBKI NOTATNIK"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🚦 MONITOR EVENTÓW", "📋 KANBAN BOARD", "🚚 FLOTA / PRZEWOŹNICY", "🔗 PORTALE", "📝 LOGBOOK"])
 
     # --- ZAKŁADKA 1: GANTT / STEPPER ---
     with tab1:
@@ -216,7 +253,6 @@ elif st.session_state["role"] == "team":
                     {"name": "Rozładunek", "date": row.get('7_Rozladunek')}
                 ]
                 
-                # ZLIKWIDOWANE WCIĘCIA, aby zapobiec renderowaniu jako blok kodu
                 stepper_html = f"""<div class="timeline-container">
 <div class="timeline-header">
 <div class="timeline-title">✈️ {row['Event']}</div>
@@ -305,20 +341,7 @@ elif st.session_state["role"] == "team":
 <a href="{url}" target="_blank" class="terminal-card-btn">Zainicjuj Połączenie ➔</a>
 </div>""", unsafe_allow_html=True)
 
-    # --- ZAKŁADKA 5: SZYBKI NOTATNIK ---
+    # --- ZAKŁADKA 5: SZYBKI NOTATNIK (LOGBOOK) ---
     with tab5:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("Wspólny Logbook (Notatnik Operacyjny)")
-        st.info("Zjedź na dół tabeli, aby dodać pilną informację. Pamiętaj kliknąć 'Zapisz', aby wysłać powiadomienie do chmury.")
-        
-        edytowane_notatki_team = st.data_editor(
-            df_notes, num_rows="dynamic", use_container_width=True, hide_index=True,
-            column_config={
-                "Data": st.column_config.TextColumn("Data/Godzina", default=datetime.now().strftime("%d.%m %H:%M")),
-                "Wiadomość": st.column_config.TextColumn("Treść Wiadomości", width="large")
-            }
-        )
-        if st.button("📡 Wyślij Notatkę do Bazy", type="primary"):
-            with st.spinner("Przesyłanie do chmury..."):
-                conn.update(worksheet="Notatnik", data=clean_for_gsheets(edytowane_notatki_team))
-                st.cache_data.clear(); st.rerun()
+        # Odpalenie tej samej funkcji co w panelu Admina! 
+        render_logbook(conn, df_notes)
