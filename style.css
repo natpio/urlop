@@ -1,0 +1,106 @@
+/* GLOBALNE ZMIENNE (Paleta United Airlines) */
+:root {
+    --ua-navy: #002244;
+    --ua-blue: #005DAA;
+    --ua-gold: #FFB81C;
+    --ua-gray-bg: #F3F5F7;
+    --ua-text-dark: #1F2937;
+    --ua-text-light: #6B7280;
+    --ua-white: #FFFFFF;
+}
+
+/* Wymuszamy lotnicze tło na głównej aplikacji */
+.stApp {
+    background-color: var(--ua-gray-bg);
+}
+
+/* BANER NAGŁÓWKOWY */
+.aviation-banner {
+    background: linear-gradient(135deg, var(--ua-navy) 0%, var(--ua-blue) 100%);
+    color: var(--ua-white);
+    padding: 30px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    border-left: 8px solid var(--ua-gold);
+}
+.aviation-banner h1 { margin: 0; font-size: 32px; font-weight: 900; letter-spacing: 1px; color: var(--ua-white);}
+.aviation-banner p { margin: 5px 0 0 0; font-size: 16px; opacity: 0.9; }
+
+/* KARTY KANBAN (Zadania) */
+.task-card {
+    background-color: var(--ua-white);
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    border-top: 4px solid #D1D5DB; /* Domyślny pasek */
+    transition: all 0.2s ease-in-out;
+}
+.task-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+.task-card.todo { border-top-color: #EF4444; } 
+.task-card.inprogress { border-top-color: var(--ua-gold); } 
+.task-card.done { border-top-color: #10B981; opacity: 0.8; } 
+
+.task-title { font-weight: 800; color: var(--ua-navy); font-size: 15px; margin-bottom: 10px; line-height: 1.3;}
+.task-assignee { font-size: 11px; color: var(--ua-navy); background: #E0E7FF; padding: 4px 10px; border-radius: 20px; font-weight: 700; display: inline-block;}
+.task-notes { font-size: 12px; color: var(--ua-text-light); margin-top: 10px; padding-top: 10px; border-top: 1px solid #E5E7EB; }
+
+/* KARTY TERMINALOWE (Linki i Przewoźnicy) */
+.terminal-card {
+    background-color: var(--ua-white);
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    min-height: 260px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+}
+.terminal-card::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 6px; background-color: var(--ua-navy);
+}
+.terminal-card-category { color: var(--ua-gold); font-weight: 900; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+.terminal-card-title { color: var(--ua-navy); font-weight: 900; font-size: 18px; margin-bottom: 12px; line-height: 1.2; }
+.terminal-card-desc { color: var(--ua-text-light); font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
+.terminal-card-btn { 
+    background-color: var(--ua-navy); color: var(--ua-white) !important; font-weight: 700; text-align: center; text-decoration: none; padding: 12px; border-radius: 4px; display: block; width: 100%; transition: 0.3s; margin-top: auto; letter-spacing: 1px; font-size: 13px; text-transform: uppercase;
+}
+.terminal-card-btn:hover { background-color: var(--ua-blue); box-shadow: 0 4px 6px rgba(0,93,170,0.3); }
+
+/* GANTT / STEPPER (Oś Czasu) */
+.timeline-container { background: var(--ua-white); padding: 30px; border-radius: 8px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
+.timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid var(--ua-gray-bg); padding-bottom: 15px; }
+.timeline-title { font-size: 22px; font-weight: 900; color: var(--ua-navy); text-transform: uppercase; letter-spacing: 1px;}
+.timeline-truck { background: var(--ua-gray-bg); color: var(--ua-navy); font-weight: 800; padding: 6px 16px; border-radius: 4px; font-size: 13px; border: 1px solid #D1D5DB;}
+
+.stepper-wrapper { display: flex; justify-content: space-between; position: relative; }
+.stepper-item { position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; text-align: center; z-index: 2; }
+.stepper-item::before { position: absolute; content: ""; border-bottom: 4px solid #E5E7EB; width: 100%; top: 18px; left: -50%; z-index: -1; }
+.stepper-item:first-child::before { content: none; }
+
+.step-counter { width: 40px; height: 40px; border-radius: 50%; background: var(--ua-white); color: var(--ua-text-light); display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 14px; margin-bottom: 10px; border: 4px solid #E5E7EB; transition: 0.3s;}
+.step-name { font-size: 12px; font-weight: 800; color: var(--ua-text-dark); text-transform: uppercase; }
+.step-date { font-size: 11px; color: var(--ua-text-light); margin-top: 4px; font-weight: 600;}
+
+.stepper-item.completed .step-counter { background: var(--ua-navy); color: var(--ua-white); border-color: var(--ua-navy); }
+.stepper-item.completed + .stepper-item::before { border-color: var(--ua-navy); }
+.stepper-item.active .step-counter { background: var(--ua-gold); color: var(--ua-navy); border-color: var(--ua-navy); transform: scale(1.15); box-shadow: 0 0 15px rgba(255, 184, 28, 0.4);}
+.stepper-item.active .step-name { color: var(--ua-navy); }
+
+/* STYLIZACJA ZAKŁADEK STREAMLIT (TABS) */
+div[data-testid="stTabs"] button[aria-selected="true"] {
+    background-color: var(--ua-navy) !important; color: var(--ua-white) !important; border-radius: 4px 4px 0 0; border-bottom: 3px solid var(--ua-gold) !important; font-weight: 800 !important;
+}
+div[data-testid="stTabs"] button[aria-selected="false"] {
+    background-color: transparent !important; color: var(--ua-text-light) !important; font-weight: 600 !important;
+}
