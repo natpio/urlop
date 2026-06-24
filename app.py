@@ -85,7 +85,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 4. FUNKCJE POMOCNICZE I BIZNESOWE
+# 4. FUNKCJE BIZNESOWE
 # ==========================================
 def get_current_stage(row):
     today = datetime.now().date()
@@ -108,52 +108,72 @@ def clean_for_gsheets(df):
     return cleaned
 
 # === NOWA FUNKCJA: RENDEROWANIE LOGBOOKA ===
-def render_logbook(conn_obj, notes_dataframe):
+def render_logbook(conn_obj, notes_dataframe, user_role):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color: #002244; font-weight: 900;'>📡 Logbook (Komunikaty Operacyjne)</h3>", unsafe_allow_html=True)
     
-    # Formularz nadawania (czyści się automatycznie po kliknięciu)
-    with st.form("logbook_form", clear_on_submit=True):
-        st.markdown("**Nadaj nowy komunikat do zespołu:**")
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            kto = st.text_input("Identyfikator (Kto nadaje):", placeholder="np. Janek")
-        with col2:
-            wiadomosc = st.text_area("Treść komunikatu:", placeholder="Wpisz pilną wiadomość...", height=68)
-        
-        submitted = st.form_submit_button("📡 Nadaj Komunikat")
-        
-        if submitted:
-            if kto.strip() == "" or wiadomosc.strip() == "":
-                st.warning("⚠️ Wypełnij oba pola przed wysłaniem!")
-            else:
-                nowy_wpis = pd.DataFrame([{
-                    "Data": datetime.now().strftime("%d.%m %H:%M"),
-                    "Kto": kto,
-                    "Wiadomość": wiadomosc
-                }])
-                updated_df = pd.concat([notes_dataframe, nowy_wpis], ignore_index=True)
-                
-                with st.spinner("Szyfrowanie i nadawanie komunikatu..."):
-                    conn_obj.update(worksheet="Notatnik", data=clean_for_gsheets(updated_df))
-                    st.cache_data.clear()
-                    st.rerun()
-
-    # Wyświetlanie historii (najnowsze na górze)
-    st.markdown("<hr style='margin: 30px 0; border-color: #E5E7EB;'>", unsafe_allow_html=True)
-    st.markdown("<h4 style='color: #002244; font-weight: 900;'>📜 Dziennik Odbiorczy</h4>", unsafe_allow_html=True)
+    # Tworzymy układ dwóch kolumn z Twojego screena (lewa szersza na logi, prawa na nowy scenariusz)
+    col_hist, col_form = st.columns([3, 2], gap="large")
     
-    df_notes_clean = notes_dataframe[notes_dataframe["Wiadomość"].str.strip() != ""]
-    
-    if df_notes_clean.empty:
-        st.info("Brak komunikatów w systemie.")
-    else:
-        # Pętla odwrócona (najnowsze wpisy wyświetlają się jako pierwsze)
-        for _, row in df_notes_clean.iloc[::-1].iterrows():
-            st.markdown(f"""<div style="background: white; border-left: 4px solid #FFB81C; padding: 15px; margin-bottom: 15px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-<div style="font-size: 11px; color: #6B7280; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">🕒 {row['Data']} &nbsp;•&nbsp; 👤 {row['Kto']}</div>
-<div style="font-size: 15px; color: #002244; line-height: 1.5; font-weight: 500;">{row['Wiadomość']}</div>
+    # Prawa Kolumna: FORMULARZ NADAWCZY
+    with col_form:
+        st.markdown("""<div style="background: white; padding: 20px; border-radius: 8px 8px 0 0; border-bottom: 2px solid #F3F5F7; border-top: 5px solid #FFB81C; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+<h3 style="margin: 0; color: #002244; font-weight: 900; font-size: 18px;">📡 Nadaj Komunikat (New Scenario)</h3>
 </div>""", unsafe_allow_html=True)
+        
+        with st.form("logbook_form", clear_on_submit=True):
+            kto = st.text_input("Identyfikator (Kto):", placeholder="np. Janek / Dyspozycja")
+            wiadomosc = st.text_area("Treść komunikatu (Slot & Transport Details):", placeholder="Wpisz pilną wiadomość...", height=150)
+            submitted = st.form_submit_button("Wyślij do systemu ➔", use_container_width=True)
+            
+            if submitted:
+                if kto.strip() == "" or wiadomosc.strip() == "":
+                    st.warning("⚠️ Wypełnij oba pola przed wysłaniem!")
+                else:
+                    nowy_wpis = pd.DataFrame([{
+                        "Data": datetime.now().strftime("%Y-%m-%d | %H:%M:%S"),
+                        "Kto": kto,
+                        "Wiadomość": wiadomosc
+                    }])
+                    updated_df = pd.concat([notes_dataframe, nowy_wpis], ignore_index=True)
+                    with st.spinner("Szyfrowanie i nadawanie..."):
+                        conn_obj.update(worksheet="Notatnik", data=clean_for_gsheets(updated_df))
+                        st.cache_data.clear()
+                        st.rerun()
+
+    # Lewa Kolumna: HISTORIA KOMUNIKATÓW
+    with col_hist:
+        st.markdown("<h3 style='color: #002244; font-weight: 900; margin-bottom: 20px;'>📻 Dziennik Pokładowy (Logistics Scripts)</h3>", unsafe_allow_html=True)
+        
+        df_notes_clean = notes_dataframe[notes_dataframe["Wiadomość"].str.strip() != ""]
+        
+        if df_notes_clean.empty:
+            st.info("Brak komunikatów w systemie.")
+        else:
+            # Pętla odwrócona (najnowsze na górze)
+            for idx, row in df_notes_clean.iloc[::-1].iterrows():
+                # Karta wiadomości stylizowana na ciemny terminal lotniczy
+                st.markdown(f"""<div style="background-color: #1E293B; border-left: 6px solid #FFB81C; border-radius: 6px; padding: 18px; margin-bottom: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+<span style="color: #94A3B8; font-size: 11px; font-family: monospace;">🗓️ {row['Data']}</span>
+<span style="background: #002244; color: #FFB81C; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid #FFB81C;">👤 {row['Kto']}</span>
+</div>
+<div style="color: #F8FAFC; font-size: 16px; font-weight: 400; font-family: monospace; letter-spacing: 0.5px;">
+"{row['Wiadomość']}"
+</div>
+</div>""", unsafe_allow_html=True)
+                
+                # Dodanie przycisków akcji (tylko dla admina, żeby nie nabrudzili)
+                if user_role == "admin":
+                    col_btn, _ = st.columns([1, 4])
+                    with col_btn:
+                        if st.button("✂️ CUT", key=f"del_{idx}", help="Usuń ten komunikat", use_container_width=True):
+                            updated_df = notes_dataframe.drop(idx)
+                            conn_obj.update(worksheet="Notatnik", data=clean_for_gsheets(updated_df))
+                            st.cache_data.clear()
+                            st.rerun()
+                    st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
 # ==========================================
 # 5. WSPÓLNY PANEL BOCZNY
@@ -213,7 +233,7 @@ if st.session_state["role"] == "admin":
 
     with tab_a5:
         # Odpalenie nowej super funkcji Logbooka
-        render_logbook(conn, df_notes)
+        render_logbook(conn, df_notes, st.session_state["role"])
 
 # =====================================================================
 # WIDOK 2: ZESPÓŁ (Widok Operacyjny)
@@ -234,7 +254,6 @@ elif st.session_state["role"] == "team":
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["🚦 MONITOR EVENTÓW", "📋 KANBAN BOARD", "🚚 FLOTA / PRZEWOŹNICY", "🔗 PORTALE", "📝 LOGBOOK"])
 
-    # --- ZAKŁADKA 1: GANTT / STEPPER ---
     with tab1:
         st.markdown("<br>", unsafe_allow_html=True)
         df_schedule_clean = df_schedule[df_schedule["Event"].str.strip() != ""]
@@ -274,7 +293,6 @@ elif st.session_state["role"] == "team":
                 stepper_html += "</div></div>"
                 st.markdown(stepper_html, unsafe_allow_html=True)
 
-    # --- ZAKŁADKA 2: KANBAN BOARD ---
     with tab2:
         st.markdown("<br>", unsafe_allow_html=True)
         df_tasks_clean = df_tasks[df_tasks["Temat"].str.strip() != ""]
@@ -298,7 +316,6 @@ elif st.session_state["role"] == "team":
             for _, row in df_kanban[df_kanban["Status"] == "Zrobione"].iterrows():
                 st.markdown(f"<div class='task-card done'><div class='task-title' style='text-decoration: line-through; color: #9CA3AF;'>{row['Zadanie']}</div><div class='task-assignee'>👨‍✈️ {row['Osoba']}</div></div>", unsafe_allow_html=True)
 
-    # --- ZAKŁADKA 3: PRZEWOŹNICY ---
     with tab3:
         st.markdown("<br>", unsafe_allow_html=True)
         df_carriers_clean = df_carriers[df_carriers["Firma"].str.strip() != ""]
@@ -320,7 +337,6 @@ elif st.session_state["role"] == "team":
 </div>
 </div>""", unsafe_allow_html=True)
 
-    # --- ZAKŁADKA 4: LINKI ---
     with tab4:
         st.markdown("<br>", unsafe_allow_html=True)
         df_links_clean = df_links[df_links["Kategoria"].str.strip() != ""]
@@ -341,7 +357,6 @@ elif st.session_state["role"] == "team":
 <a href="{url}" target="_blank" class="terminal-card-btn">Zainicjuj Połączenie ➔</a>
 </div>""", unsafe_allow_html=True)
 
-    # --- ZAKŁADKA 5: SZYBKI NOTATNIK (LOGBOOK) ---
     with tab5:
         # Odpalenie tej samej funkcji co w panelu Admina! 
-        render_logbook(conn, df_notes)
+        render_logbook(conn, df_notes, st.session_state["role"])
