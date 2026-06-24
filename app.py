@@ -24,12 +24,10 @@ if "role" not in st.session_state:
     st.session_state["role"] = None
 
 if not st.session_state["role"]:
-    st.markdown("""
-        <div class="aviation-banner" style="text-align: center; margin-top: 10vh;">
-            <h1>✈️ GLOBAL LOGISTICS TERMINAL</h1>
-            <p>Wprowadź kod dostępu do systemu operacyjnego</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div class="aviation-banner" style="text-align: center; margin-top: 10vh;">
+<h1>✈️ GLOBAL LOGISTICS TERMINAL</h1>
+<p>Wprowadź kod dostępu do systemu operacyjnego</p>
+</div>""", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -87,7 +85,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 4. FUNKCJE POMOCNICZE (LOGIKA BIZNESOWA)
+# 4. FUNKCJE POMOCNICZE
 # ==========================================
 def get_current_stage(row):
     today = datetime.now().date()
@@ -104,14 +102,13 @@ def get_current_stage(row):
     return current_stage
 
 def clean_for_gsheets(df):
-    """Zabezpiecza puste daty i nulle przed wysłaniem do Google Sheets"""
     cleaned = df.copy()
     for col in cleaned.columns:
         cleaned[col] = cleaned[col].astype(str).replace(['NaT', 'nan', 'None', '<NA>', 'NaN'], '')
     return cleaned
 
 # ==========================================
-# 5. WSPÓLNY PANEL BOCZNY (SIDEBAR)
+# 5. WSPÓLNY PANEL BOCZNY
 # ==========================================
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=60)
@@ -130,18 +127,15 @@ with st.sidebar:
 # WIDOK 1: ADMINISTRATOR
 # =====================================================================
 if st.session_state["role"] == "admin":
-    st.markdown("""
-        <div class="aviation-banner">
-            <h1>⚙️ FLIGHT DECK (CMS)</h1>
-            <p>Zarządzanie infrastrukturą, zadaniami, flotą i logbookiem.</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div class="aviation-banner">
+<h1>⚙️ FLIGHT DECK (CMS)</h1>
+<p>Zarządzanie infrastrukturą, zadaniami, flotą i logbookiem.</p>
+</div>""", unsafe_allow_html=True)
     
     tab_a1, tab_a2, tab_a3, tab_a4, tab_a5 = st.tabs(["📋 REJESTR ZADAŃ", "📅 HARMONOGRAM", "🚚 FLOTA", "🔗 SYSTEMY", "📝 SZYBKI NOTATNIK"])
     
     with tab_a1:
-        edytowane_zadania = st.data_editor(df_tasks, num_rows="dynamic", use_container_width=True, hide_index=True,
-                                           column_config={"Status": st.column_config.SelectboxColumn(options=["Do zrobienia", "W trakcie", "Zrobione"])})
+        edytowane_zadania = st.data_editor(df_tasks, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"Status": st.column_config.SelectboxColumn(options=["Do zrobienia", "W trakcie", "Zrobione"])})
         if st.button("🛫 Wgraj aktualizację zadań", type="primary"):
             with st.spinner("Przesyłanie do chmury..."):
                 conn.update(worksheet="Arkusz1", data=clean_for_gsheets(edytowane_zadania))
@@ -191,12 +185,10 @@ elif st.session_state["role"] == "team":
     
     colA, colB = st.columns([5, 1])
     with colA: 
-        st.markdown("""
-            <div class="aviation-banner">
-                <h1>🌐 GLOBAL OPERATIONS HUB</h1>
-                <p>Bieżący monitoring statusów logistycznych i komunikacja</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="aviation-banner">
+<h1>🌐 GLOBAL OPERATIONS HUB</h1>
+<p>Bieżący monitoring statusów logistycznych i komunikacja</p>
+</div>""", unsafe_allow_html=True)
     with colB: 
         st.write("")
         st.write("")
@@ -224,27 +216,25 @@ elif st.session_state["role"] == "team":
                     {"name": "Rozładunek", "date": row.get('7_Rozladunek')}
                 ]
                 
-                stepper_html = f"""
-                <div class="timeline-container">
-                    <div class="timeline-header">
-                        <div class="timeline-title">✈️ {row['Event']}</div>
-                        <div class="timeline-truck">TRUCK: {row.get('Auto', 'Oczekuje na przypisanie')}</div>
-                    </div>
-                    <div class="stepper-wrapper">
-                """
+                # ZLIKWIDOWANE WCIĘCIA, aby zapobiec renderowaniu jako blok kodu
+                stepper_html = f"""<div class="timeline-container">
+<div class="timeline-header">
+<div class="timeline-title">✈️ {row['Event']}</div>
+<div class="timeline-truck">TRUCK: {row.get('Auto', 'Oczekuje na przypisanie')}</div>
+</div>
+<div class="stepper-wrapper">"""
                 
                 for idx, s in enumerate(stages):
                     step_num = idx + 1
                     status_class = "completed" if step_num < etap else ("active" if step_num == etap else "")
                     date_str = s['date'].strftime('%d.%m') if pd.notnull(s['date']) else "---"
                     
-                    stepper_html += f"""
-                        <div class="stepper-item {status_class}">
-                            <div class="step-counter">{step_num}</div>
-                            <div class="step-name">{s['name']}</div>
-                            <div class="step-date">{date_str}</div>
-                        </div>
-                    """
+                    stepper_html += f"""<div class="stepper-item {status_class}">
+<div class="step-counter">{step_num}</div>
+<div class="step-name">{s['name']}</div>
+<div class="step-date">{date_str}</div>
+</div>"""
+                
                 stepper_html += "</div></div>"
                 st.markdown(stepper_html, unsafe_allow_html=True)
 
@@ -282,19 +272,17 @@ elif st.session_state["role"] == "team":
             cols_c = st.columns(3)
             for index, row in df_carriers_clean.reset_index(drop=True).iterrows():
                 with cols_c[index % 3]:
-                    st.markdown(f"""
-                    <div class="terminal-card" style="min-height: 220px;">
-                        <div>
-                            <div class="terminal-card-category">🚛 {row.get('Typ_Auta', 'Typ Nieznany')}</div>
-                            <div class="terminal-card-title">{row['Firma']}</div>
-                            <div class="terminal-card-desc">
-                                <strong>📞 Tel:</strong> {row.get('Telefon', '---')}<br>
-                                <strong>👤 Kontakt:</strong> {row.get('Kontakt', '---')}<br>
-                                <br><i>{row.get('Uwagi', '')}</i>
-                            </div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class="terminal-card" style="min-height: 220px;">
+<div>
+<div class="terminal-card-category">🚛 {row.get('Typ_Auta', 'Typ Nieznany')}</div>
+<div class="terminal-card-title">{row['Firma']}</div>
+<div class="terminal-card-desc">
+<strong>📞 Tel:</strong> {row.get('Telefon', '---')}<br>
+<strong>👤 Kontakt:</strong> {row.get('Kontakt', '---')}<br>
+<br><i>{row.get('Uwagi', '')}</i>
+</div>
+</div>
+</div>""", unsafe_allow_html=True)
 
     # --- ZAKŁADKA 4: LINKI ---
     with tab4:
@@ -308,16 +296,14 @@ elif st.session_state["role"] == "team":
                 with kolumny[index % 4]:
                     url = row['URL'] if row['URL'].startswith('http') else '#'
                     opis = row['Opis'] if row['Opis'] else url
-                    st.markdown(f"""
-                    <div class="terminal-card">
-                        <div>
-                            <div class="terminal-card-category">🌐 P.O.D.</div>
-                            <div class="terminal-card-title">{row['Nazwa']}</div>
-                            <div class="terminal-card-desc">{opis}</div>
-                        </div>
-                        <a href="{url}" target="_blank" class="terminal-card-btn">Zainicjuj Połączenie ➔</a>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class="terminal-card">
+<div>
+<div class="terminal-card-category">🌐 P.O.D.</div>
+<div class="terminal-card-title">{row['Nazwa']}</div>
+<div class="terminal-card-desc">{opis}</div>
+</div>
+<a href="{url}" target="_blank" class="terminal-card-btn">Zainicjuj Połączenie ➔</a>
+</div>""", unsafe_allow_html=True)
 
     # --- ZAKŁADKA 5: SZYBKI NOTATNIK ---
     with tab5:
