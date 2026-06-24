@@ -91,7 +91,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 4. FUNKCJE BIZNESOWE (Gantt, Radar, Czystość)
+# 4. FUNKCJE BIZNESOWE
 # ==========================================
 def clean_for_gsheets(df):
     cleaned = df.copy()
@@ -249,7 +249,6 @@ with st.sidebar:
     else:
         st.info("👨‍💼 CREW (ZESPÓŁ)")
         
-    # Teraz OBA konta mają wybór modułów
     nav_mode = st.radio("Nawigacja Modułów:", ["🌍 Hub Operacyjny", "📄 Kreator Zleceń PRO"])
     
     st.markdown("---")
@@ -354,7 +353,7 @@ if nav_mode == "🌍 Hub Operacyjny":
                     st.markdown(f"""<div style="background-color: #1E293B; border-left: 6px solid #FFB81C; border-radius: 6px; padding: 18px; margin-bottom: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><span style="color: #94A3B8; font-size: 11px; font-family: monospace;">🗓️ {row['Data']}</span><span style="background: #002244; color: #FFB81C; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid #FFB81C;">👤 {row['Kto']}</span></div><div style="color: #F8FAFC; font-size: 16px; font-weight: 400; font-family: monospace; letter-spacing: 0.5px;">"{row['Wiadomość']}"</div></div><br>""", unsafe_allow_html=True)
 
 # =====================================================================
-# WIDOK 2: KREATOR ZLECEŃ PRO (PDF) - OTWARTY DLA OBU RÓL!
+# WIDOK 2: KREATOR ZLECEŃ PRO (PDF)
 # =====================================================================
 elif nav_mode == "📄 Kreator Zleceń PRO":
     st.markdown("""<div class="aviation-banner" style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); border-left: 8px solid #38BDF8;">
@@ -367,6 +366,7 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
     val_nazwa_przewoznika, val_detale_przewoznika, val_stawka_final, val_waluta = "Wybierz...", "", 0.0, "EUR"
     val_z_sel, val_z_man, val_c_auto, val_instrukcje, val_podpis = "Magazyn SQM Komorniki", "", "", "Parking strzeżony, pasy zabezpieczające; załadować po długości, casy nie mogą leżeć.", "PD"
     val_wartosc_towaru, val_projekt, wybrane_zlecenie_nr, gs_row_index = 100000, "Brak", None, None
+    val_zrodlo = "Przewoźnik z bazy"
     
     lista_eventow = df_schedule['Event'].dropna().unique().tolist() if not df_schedule.empty else []
     lista_miejsc_baza = df_miejsca['Nazwa do listy'].tolist() if not df_miejsca.empty else []
@@ -406,18 +406,28 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
             if "AUTO: " in uwagi_baza:
                 try: val_c_auto = uwagi_baza.split("AUTO: ")[1].split(" ||")[0]
                 except: pass
+            
+            # Wczytywanie wartości towaru z kompatybilnością wsteczną (EUR lub PLN)
             if "WART: " in uwagi_baza:
-                try: val_wartosc_towaru = int(uwagi_baza.split("WART: ")[1].split(" PLN")[0])
-                except: pass
+                try: val_wartosc_towaru = int(uwagi_baza.split("WART: ")[1].split(" EUR")[0])
+                except: 
+                    try: val_wartosc_towaru = int(uwagi_baza.split("WART: ")[1].split(" PLN")[0])
+                    except: pass
+                    
             if " || " in uwagi_baza:
                 parts = uwagi_baza.split(" || ")
                 if len(parts) >= 4: val_instrukcje = parts[3]
                 elif len(parts) == 3 and "CYKL:" not in parts[2]: val_instrukcje = parts[2]
             
+            # Rozpoznanie źródła przewoźnika
             r_p = df_carriers[df_carriers['Firma'] == val_nazwa_przewoznika]
             if not r_p.empty:
                 r = r_p.iloc[0]
                 val_detale_przewoznika = f"{str(r.get('Firma', ''))}\nTel: {str(r.get('Telefon', ''))}\n{str(r.get('Uwagi', ''))}".strip()
+                val_zrodlo = "Przewoźnik z bazy"
+            else:
+                val_zrodlo = "Przewoźnik z giełdy"
+                val_detale_przewoznika = ""
 
     with st.container(border=True):
         st.markdown("#### 1. Kierunek i Harmonogram")
@@ -434,23 +444,37 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
 
     with st.container(border=True):
         st.markdown("#### 2. Przewoźnik i Koszty")
+        
+        # Wybór źródła
+        zrodlo_idx = ["Przewoźnik z bazy", "Przewoźnik z giełdy"].index(val_zrodlo) if val_zrodlo in ["Przewoźnik z bazy", "Przewoźnik z giełdy"] else 0
+        zrodlo = st.radio("Źródło przewoźnika:", ["Przewoźnik z bazy", "Przewoźnik z giełdy"], index=zrodlo_idx, horizontal=True)
+        
         lista_cennikowa = df_carriers['Firma'].dropna().unique().tolist() if not df_carriers.empty else []
-        if tryb_pracy == "Edycja Istniejącego Zlecenia" and val_nazwa_przewoznika not in lista_cennikowa and val_nazwa_przewoznika != "":
-            lista_cennikowa.append(val_nazwa_przewoznika)
         
-        f1, f2, f3 = st.columns([2, 1, 1])
-        nazwa_przewoznika = f1.selectbox("Wybierz partnera z bazy:", ["Wybierz..."] + lista_cennikowa, index=(lista_cennikowa.index(val_nazwa_przewoznika)+1 if val_nazwa_przewoznika in lista_cennikowa else 0))
-        
-        if nazwa_przewoznika != "Wybierz...":
-            r_p = df_carriers[df_carriers['Firma'] == nazwa_przewoznika]
-            if not r_p.empty:
-                r = r_p.iloc[0]
-                detale_przewoznika = f"{str(r.get('Firma', ''))}\nTel: {str(r.get('Telefon', ''))}\nKontakt: {str(r.get('Kontakt', ''))}".strip()
-            else: detale_przewoznika = nazwa_przewoznika
-        else: detale_przewoznika = ""
-        
-        stawka_final = f2.number_input("Cena Total:", value=float(val_stawka_final))
-        waluta = f3.selectbox("Waluta:", ["EUR", "PLN"], index=(["EUR", "PLN"].index(val_waluta) if val_waluta in ["EUR", "PLN"] else 0))
+        if zrodlo == "Przewoźnik z bazy":
+            if tryb_pracy == "Edycja Istniejącego Zlecenia" and val_nazwa_przewoznika not in lista_cennikowa and val_nazwa_przewoznika != "":
+                lista_cennikowa.append(val_nazwa_przewoznika)
+            
+            f1, f2, f3 = st.columns([2, 1, 1])
+            nazwa_przewoznika = f1.selectbox("Wybierz partnera z bazy:", ["Wybierz..."] + lista_cennikowa, index=(lista_cennikowa.index(val_nazwa_przewoznika)+1 if val_nazwa_przewoznika in lista_cennikowa else 0))
+            
+            if nazwa_przewoznika != "Wybierz...":
+                r_p = df_carriers[df_carriers['Firma'] == nazwa_przewoznika]
+                if not r_p.empty:
+                    r = r_p.iloc[0]
+                    detale_przewoznika = f"{str(r.get('Firma', ''))}\nTel: {str(r.get('Telefon', ''))}\nKontakt: {str(r.get('Kontakt', ''))}".strip()
+                else: detale_przewoznika = nazwa_przewoznika
+            else: detale_przewoznika = ""
+            
+            stawka_final = f2.number_input("Cena Total:", value=float(val_stawka_final))
+            waluta = f3.selectbox("Waluta:", ["EUR", "PLN"], index=(["EUR", "PLN"].index(val_waluta) if val_waluta in ["EUR", "PLN"] else 0))
+            
+        else: # Przewoźnik z giełdy
+            nazwa_przewoznika = st.text_input("Nazwa firmy z giełdy:", value=val_nazwa_przewoznika if val_zrodlo == "Przewoźnik z giełdy" else "")
+            detale_przewoznika = st.text_area("Pełne dane (Adres, NIP, Kontakt):", value=val_detale_przewoznika if val_zrodlo == "Przewoźnik z giełdy" else "", placeholder="Wklej pełne dane przewoźnika do zamówienia...")
+            f1, f2 = st.columns(2)
+            stawka_final = f1.number_input("Cena Total:", value=float(val_stawka_final))
+            waluta = f2.selectbox("Waluta:", ["EUR", "PLN"], index=(["EUR", "PLN"].index(val_waluta) if val_waluta in ["EUR", "PLN"] else 0))
 
     with st.container(border=True):
         st.markdown("#### 3. Logistyka Miejsc")
@@ -467,7 +491,8 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
         st.markdown("#### 4. Realizacja i Uwagi")
         d_auto, d_wart = st.columns(2)
         c_auto = d_auto.text_input("Auto / Kierowca:", value=val_c_auto, placeholder="np. PO 12345 / Jan Kowalski")
-        wartosc_towaru = d_wart.number_input("Wartość towaru (PLN):", min_value=0, value=val_wartosc_towaru)
+        # Zmiana z PLN na EUR
+        wartosc_towaru = d_wart.number_input("Wartość towaru (EUR):", min_value=0, value=val_wartosc_towaru)
         u1, u2 = st.columns([3, 1])
         instrukcje = u1.text_area("Instrukcje dodatkowe:", value=val_instrukcje, height=80)
         podpis = u2.radio("Podpis:", ["PD", "PK"], index=(["PD", "PK"].index(val_podpis) if val_podpis in ["PD", "PK"] else 0), horizontal=True)
@@ -496,7 +521,9 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                 full_roz_pdf = build_full_address(r_s, r_m, df_miejsca)
                 
                 historia_cyklu = f"CYKL: {data_zal} -> {data_roz}" + (f" | EMP: {data_emp_in} | POWRÓT: {data_emp_out}" if typ_zlecenia == "Pełny event" else "")
-                pelne_uwagi_db = f"AUTO: {c_auto} || WART: {wartosc_towaru} PLN || {historia_cyklu} || {instrukcje}"
+                
+                # Zapis z tagiem EUR zamiast PLN
+                pelne_uwagi_db = f"AUTO: {c_auto} || WART: {wartosc_towaru} EUR || {historia_cyklu} || {instrukcje}"
                 uwagi_na_pdf = f"VEHICLE/DRIVER: {c_auto}\n{instrukcje}"
                 
                 if tryb_pracy == "Edycja Istniejącego Zlecenia":
