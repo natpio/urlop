@@ -164,6 +164,15 @@ class PRO_TransportOrder(FPDF):
             for i in range(-20, 210, 70): self.text(i + przesuniecie, j, self.watermark_text)
         self.set_text_color(0, 0, 0)
     def header(self):
+        # --- IMPLEMENTACJA LOGO ---
+        try:
+            if os.path.exists("logosqm.png"):
+                self.image("logosqm.png", 10, 8, 50)
+            elif os.path.exists("logosqm.jpg"):
+                self.image("logosqm.jpg", 10, 8, 50)
+        except Exception as e:
+            pass
+        # --------------------------
         self.set_font("Arial", 'B', 18); self.set_text_color(40, 40, 40); self.set_xy(65, 12); self.cell(105, 8, pdf_sanitize("TRANSPORT ORDER"), ln=True, align='R')
         self.set_font("Arial", 'B', 11); self.set_text_color(100, 100, 100); self.set_xy(65, 20); self.cell(105, 5, pdf_sanitize("ZLECENIE TRANSPORTOWE"), ln=True, align='R')
         self.set_font("Arial", '', 8); self.set_xy(65, 26); self.cell(105, 5, pdf_sanitize("Logistics Department"), ln=True, align='R'); self.ln(15)
@@ -418,7 +427,6 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                 if len(parts) >= 4: val_instrukcje = parts[3]
                 elif len(parts) == 3 and "CYKL:" not in parts[2]: val_instrukcje = parts[2]
             
-            # Wczytywanie detali ze zaktualizowanej bazy przewoźników
             r_p = df_carriers[df_carriers['Firma'] == val_nazwa_przewoznika]
             if not r_p.empty:
                 r = r_p.iloc[0]
@@ -459,7 +467,6 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                 r_p = df_carriers[df_carriers['Firma'] == nazwa_przewoznika]
                 if not r_p.empty:
                     r = r_p.iloc[0]
-                    # Dynamiczne pobieranie nowego Adresu i NIP do PDF
                     detale_przewoznika = f"{str(r.get('Firma', ''))}\n{str(r.get('Adres', ''))}\nNIP: {str(r.get('NIP', ''))}\nTel: {str(r.get('Telefon', ''))} | {str(r.get('Kontakt', ''))}".strip()
                 else: detale_przewoznika = nazwa_przewoznika
             else: detale_przewoznika = ""
