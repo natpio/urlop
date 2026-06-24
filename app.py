@@ -64,7 +64,6 @@ try:
     df_miejsca = conn.read(worksheet="Miejsca", ttl=60).dropna(how="all")
     df_zlecenia = conn.read(worksheet="Zlecenia", ttl=60).dropna(how="all")
     
-    # Czyszczenie i wymuszanie typów danych
     for df, cols in [
         (df_tasks, ["Temat", "Zadanie", "Osoba", "Termin", "Status", "Notatki"]),
         (df_links, ["Nazwa", "URL", "Opis", "Kategoria"]),
@@ -177,7 +176,6 @@ class PRO_TransportOrder(FPDF):
 def generate_pro_pdf(dane):
     pdf = PRO_TransportOrder(opiekun=dane.get('opiekun', 'PD'))
     pdf.alias_nb_pages(); pdf.add_page(); pdf.add_watermark()
-    # KOD QR 
     qr = qrcode.QRCode(version=1, box_size=10, border=1)
     qr.add_data(f"VERIFY: {dane['nr']}\nSYS: TERMINAL PRO")
     qr.make(fit=True)
@@ -186,7 +184,6 @@ def generate_pro_pdf(dane):
         img_qr.save(tmp, format="PNG"); qr_path = tmp.name
     pdf.image(qr_path, 175, 10, 25)
     if os.path.exists(qr_path): os.remove(qr_path)
-    # BLOKI: REF & DATE
     pdf.set_xy(10, 40); pdf.set_font("Arial", 'B', 9); pdf.set_fill_color(25, 118, 210); pdf.set_text_color(255, 255, 255)
     pdf.cell(25, 8, pdf_sanitize(" REF "), border=0, fill=True, align='C'); pdf.set_fill_color(245, 245, 245); pdf.set_text_color(40, 40, 40)
     pdf.cell(60, 8, pdf_sanitize(f" {dane['nr']}"), border=0, fill=True); pdf.cell(5, 8, "", border=0) 
@@ -249,10 +246,11 @@ with st.sidebar:
     
     if st.session_state["role"] == "admin":
         st.success("👨‍✈️ CAPTAIN (ADMIN)")
-        nav_mode = st.radio("Nawigacja Modułów:", ["🌍 Hub Operacyjny", "📄 Kreator Zleceń PRO"])
     else:
         st.info("👨‍💼 CREW (ZESPÓŁ)")
-        nav_mode = "🌍 Hub Operacyjny" # Zespół ma tylko widok operacyjny
+        
+    # Teraz OBA konta mają wybór modułów
+    nav_mode = st.radio("Nawigacja Modułów:", ["🌍 Hub Operacyjny", "📄 Kreator Zleceń PRO"])
     
     st.markdown("---")
     if st.button("🚪 Zakończ zmianę", use_container_width=True):
@@ -356,7 +354,7 @@ if nav_mode == "🌍 Hub Operacyjny":
                     st.markdown(f"""<div style="background-color: #1E293B; border-left: 6px solid #FFB81C; border-radius: 6px; padding: 18px; margin-bottom: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><span style="color: #94A3B8; font-size: 11px; font-family: monospace;">🗓️ {row['Data']}</span><span style="background: #002244; color: #FFB81C; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid #FFB81C;">👤 {row['Kto']}</span></div><div style="color: #F8FAFC; font-size: 16px; font-weight: 400; font-family: monospace; letter-spacing: 0.5px;">"{row['Wiadomość']}"</div></div><br>""", unsafe_allow_html=True)
 
 # =====================================================================
-# WIDOK 2: KREATOR ZLECEŃ PRO (PDF)
+# WIDOK 2: KREATOR ZLECEŃ PRO (PDF) - OTWARTY DLA OBU RÓL!
 # =====================================================================
 elif nav_mode == "📄 Kreator Zleceń PRO":
     st.markdown("""<div class="aviation-banner" style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); border-left: 8px solid #38BDF8;">
