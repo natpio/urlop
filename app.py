@@ -10,7 +10,7 @@ import tempfile
 import os
 import hashlib
 import difflib
-import time  # Dodano moduł czasu do synchronizacji z serwerami Google
+import time
 
 # ==========================================
 # 1. KONFIGURACJA STRONY I CSS
@@ -52,19 +52,38 @@ if not st.session_state["role"]:
     st.stop()
 
 # ==========================================
-# 3. POŁĄCZENIE Z BAZĄ DANYCH
+# 3. POŁĄCZENIE Z BAZĄ DANYCH (TARCZA ANTI-429)
 # ==========================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-try:
-    df_tasks = conn.read(worksheet="Arkusz1", ttl=60).dropna(how="all")
-    df_links = conn.read(worksheet="Linki", ttl=60).dropna(how="all")
-    df_carriers = conn.read(worksheet="Przewoznicy", ttl=60).dropna(how="all")
-    df_schedule = conn.read(worksheet="Harmonogram", ttl=60).dropna(how="all")
-    df_notes = conn.read(worksheet="Notatnik", ttl=60).dropna(how="all")
-    df_miejsca = conn.read(worksheet="Miejsca", ttl=60).dropna(how="all")
-    df_zlecenia = conn.read(worksheet="Zlecenia", ttl=60).dropna(how="all")
-    
+# Zabezpieczenie przed limitem 60 zapytań/minutę
+dane_pobrane = False
+for attempt in range(3):
+    try:
+        # Wydłużamy TTL do 10 minut. Każdy zapis i tak sam zresetuje cache.
+        df_tasks = conn.read(worksheet="Arkusz1", ttl=600).dropna(how="all")
+        df_links = conn.read(worksheet="Linki", ttl=600).dropna(how="all")
+        df_carriers = conn.read(worksheet="Przewoznicy", ttl=600).dropna(how="all")
+        df_schedule = conn.read(worksheet="Harmonogram", ttl=600).dropna(how="all")
+        df_notes = conn.read(worksheet="Notatnik", ttl=600).dropna(how="all")
+        df_miejsca = conn.read(worksheet="Miejsca", ttl=600).dropna(how="all")
+        df_zlecenia = conn.read(worksheet="Zlecenia", ttl=600).dropna(how="all")
+        dane_pobrane = True
+        break # Udało się, wychodzimy z pętli
+    except Exception as e:
+        if '429' in str(e) or 'Quota exceeded' in str(e):
+            if attempt < 2:
+                st.toast(f"⏳ Oczekiwanie na przepustowość Google (Limit). Próba {attempt+2}/3...")
+                time.sleep(8) # Czekamy 8 sekund i próbujemy ponownie
+            else:
+                st.error("⚠️ Serwery Google są przeciążone zbyt wieloma zapytaniami na minutę. Zrób 60 sekund przerwy i odśwież stronę.")
+                st.stop()
+        else:
+            st.error(f"⚠️ Krytyczny błąd bazy: {e}")
+            st.stop()
+
+if dane_pobrane:
+    # Wymuszanie typów danych
     for df, cols in [
         (df_tasks, ["Temat", "Zadanie", "Osoba", "Termin", "Status", "Notatki"]),
         (df_links, ["Nazwa", "URL", "Opis", "Kategoria"]),
@@ -87,12 +106,8 @@ try:
         else:
             df_schedule[col] = df_schedule[col].fillna("").astype(str)
 
-except Exception as e:
-    st.error(f"⚠️ Błąd połączenia z bazą: {e}")
-    st.stop()
-
 # ==========================================
-# 4. FUNKCJE BIZNESOWE
+# 4. FUNKCJE BIZNESOWE (Gantt, Radar, Czystość)
 # ==========================================
 def clean_for_gsheets(df):
     cleaned = df.copy()
@@ -406,7 +421,6 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
     st.markdown("""<div class="aviation-banner" style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); border-left: 8px solid #38BDF8;">
     <h1 style="color:white;">📄 KREATOR ZLECEŃ PRO v5.4</h1><p style="color:#CBD5E1;">Zautomatyzowane generowanie zasileń PDF i rejestracja w bazie Zlecenia.</p></div>""", unsafe_allow_html=True)
     
-    # Zabezpieczenie przed "znikaniem" przycisku pobierania
     if "pdf_data" in st.session_state:
         st.success(f"✅ Zlecenie {st.session_state.get('pdf_nr', '')} zapisane bezpiecznie w bazie!")
         st.download_button("📥 POBIERZ DOKUMENT PDF", data=st.session_state["pdf_data"], file_name=st.session_state["pdf_name"], mime="application/pdf", use_container_width=True)
@@ -603,10 +617,8 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                         else:
                             conn.update(worksheet="Zlecenia", data=clean_for_gsheets(pd.concat([df_zlecenia, nowy_wiersz], ignore_index=True)))
                             
-                        # Opóźnienie zabezpieczające przed błędem wczytywania!
                         time.sleep(1.5) 
                         
-                        # Generowanie PDF i przypisanie do pamięci
                         pdf_bytes = generate_pro_pdf(paczka_pdf)
                         st.session_state["pdf_data"] = pdf_bytes
                         st.session_state["pdf_name"] = f"Order_{nr_zlecenia.replace('/', '_')}.pdf"
@@ -616,4 +628,4 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"⚠️ Wystąpił krytyczny błąd zapisu do bazy: {e}")
+                        st.error(f"⚠️ Wystąpił błąd zapisu: {e}")
