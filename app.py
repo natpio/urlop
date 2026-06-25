@@ -20,22 +20,95 @@ from vantage import render_vantage
 # ==========================================
 st.set_page_config(page_title="Global Logistics Hub", page_icon="✈️", layout="wide")
 
-# --- UKRYCIE MENU STREAMLIT I CAŁKOWITE ZABICIE SIDEBARU ---
+# --- UKRYCIE MENU STREAMLIT I INTERFEJS 999+ PRO ---
 hide_st_style = """<style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-[data-testid="collapsedControl"] {display: none;} /* Usuwa małą strzałkę w lewym górnym rogu */
+[data-testid="collapsedControl"] {display: none;}
 
-/* Stylizacja nowoczesnego menu górnego (Radio Buttons) */
-div[role="radiogroup"] { justify-content: center; gap: 15px; margin-top: 5px;}
-div.row-widget.stRadio > div > label { 
-    border: 2px solid #E5E7EB; padding: 10px 25px; border-radius: 30px; 
-    background: #FFFFFF; transition: all 0.3s ease; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+/* --- 999+ PRO: TOP NAVIGATION (SEGMENTED CONTROL) --- */
+div[data-testid="stRadio"] > div[role="radiogroup"] {
+    display: flex;
+    flex-direction: row;
+    background: #F1F5F9;
+    padding: 6px;
+    border-radius: 16px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
 }
-div.row-widget.stRadio > div > label:hover { border-color: #005DAA; background: #F8FAFC; transform: translateY(-1px); }
-div.row-widget.stRadio > div > label[data-checked="true"] { background: #002244; border-color: #002244; box-shadow: 0 4px 10px rgba(0,34,68,0.2); }
-div.row-widget.stRadio > div > label[data-checked="true"] p { color: #FFFFFF !important; font-weight: 800; }
+div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+    background: transparent;
+    padding: 12px 30px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+    margin: 0;
+}
+/* Ukrycie okrągłego przycisku radio */
+div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:first-child {
+    display: none !important;
+}
+/* Tekst nieaktywny */
+div[data-testid="stRadio"] > div[role="radiogroup"] > label p {
+    font-weight: 700 !important;
+    color: #64748B !important;
+    font-size: 15px;
+    margin: 0;
+}
+/* Hover */
+div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
+    background: #FFFFFF;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    transform: translateY(-1px);
+}
+/* Tekst i tło aktywne */
+div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] {
+    background: #002244 !important;
+    border: 1px solid #00152b !important;
+    box-shadow: 0 8px 15px rgba(0, 34, 68, 0.25) !important;
+}
+div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] p {
+    color: #FFFFFF !important;
+}
+
+/* --- 999+ PRO: ZAKŁADKI (TABS JAKO KARTY) --- */
+div[data-testid="stTabs"] > div[role="tablist"] {
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #E2E8F0;
+}
+div[data-testid="stTabs"] button[role="tab"] {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-bottom: none !important;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 12px 24px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.02);
+}
+div[data-testid="stTabs"] button[role="tab"] p {
+    font-weight: 700 !important;
+    color: #64748B !important;
+    font-size: 14px;
+}
+div[data-testid="stTabs"] button[role="tab"]:hover {
+    background: #F8FAFC !important;
+    transform: translateY(-2px);
+}
+/* Aktywna Zakładka */
+div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+    background: #002244 !important;
+    border-color: #002244 !important;
+    border-bottom: 4px solid #FFB81C !important;
+    box-shadow: 0 -6px 15px rgba(0,34,68,0.15) !important;
+}
+div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p {
+    color: #FFFFFF !important;
+}
 </style>"""
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
@@ -277,7 +350,7 @@ def generate_pro_pdf(dane):
     return bytes(pdf.output(dest='S').encode('latin1'))
 
 # ==========================================
-# 6. GŁÓWNA NAWIGACJA (TOP-BAR ZAMIAST SIDEBARU)
+# 6. GŁÓWNA NAWIGACJA (TOP-BAR)
 # ==========================================
 st.markdown("<br>", unsafe_allow_html=True)
 top_c1, top_c2, top_c3 = st.columns([1, 4, 1], gap="medium")
@@ -292,14 +365,14 @@ with top_c2:
     nav_mode = st.radio("Nawigacja:", ["🌍 Hub Operacyjny", "📄 Kreator Zleceń PRO", "📊 Kalkulator Vantage"], horizontal=True, label_visibility="collapsed")
 
 with top_c3:
-    if st.button("🚪 Wyloguj (Zakończ Zmianę)", use_container_width=True):
+    if st.button("🚪 Wyloguj", use_container_width=True):
         st.session_state["role"] = None
         st.rerun()
 
 st.markdown("<hr style='margin: 10px 0 30px 0; border: none; border-top: 2px solid #E5E7EB;'>", unsafe_allow_html=True)
 
 # =====================================================================
-# WIDOK 1: HUB OPERACYJNY (GŁÓWNY SYSTEM)
+# WIDOK 1: HUB OPERACYJNY
 # =====================================================================
 if nav_mode == "🌍 Hub Operacyjny":
 
@@ -510,7 +583,7 @@ if nav_mode == "🌍 Hub Operacyjny":
 </div><br>""", unsafe_allow_html=True)
 
 # =====================================================================
-# WIDOK 2: KREATOR ZLECEŃ PRO (PDF)
+# WIDOK 2: KREATOR ZLECEŃ PRO
 # =====================================================================
 elif nav_mode == "📄 Kreator Zleceń PRO":
     st.markdown("""<div class="aviation-banner" style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); border-left: 8px solid #38BDF8;">
