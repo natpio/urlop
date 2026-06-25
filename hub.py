@@ -207,10 +207,16 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
                 
         with tab2:
             df_tasks_clean = df_tasks[df_tasks["Temat"].str.strip() != ""]
+            
+            # --- ZABEZPIECZENIE PRZED LITERÓWKAMI ---
+            # Tworzymy ustandaryzowaną kolumnę "Status", która eliminuje spacje i wielkie litery
+            status_norm = df_tasks_clean["Status"].str.strip().str.lower()
+            
             k_todo, k_inprog, k_done = st.columns(3)
             with k_todo:
                 st.markdown("<h3 style='color: #EF4444; font-size:16px; font-weight:800;'>🔴 STANDBY (Do zrobienia)</h3>", unsafe_allow_html=True)
-                for _, row in df_tasks_clean[df_tasks_clean["Status"] == "Do zrobienia"].iterrows(): 
+                # Filtrujemy wg znormalizowanej wartości
+                for _, row in df_tasks_clean[status_norm == "do zrobienia"].iterrows(): 
                     st.markdown(f"""<div class='task-card todo'>
 <div class='task-title'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
@@ -218,7 +224,7 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
 </div>""", unsafe_allow_html=True)
             with k_inprog:
                 st.markdown("<h3 style='color: #FFB81C; font-size:16px; font-weight:800;'>🟡 IN TRANSIT (W trakcie)</h3>", unsafe_allow_html=True)
-                for _, row in df_tasks_clean[df_tasks_clean["Status"] == "W trakcie"].iterrows(): 
+                for _, row in df_tasks_clean[status_norm == "w trakcie"].iterrows(): 
                     st.markdown(f"""<div class='task-card inprogress'>
 <div class='task-title'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
@@ -226,7 +232,7 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
 </div>""", unsafe_allow_html=True)
             with k_done:
                 st.markdown("<h3 style='color: #10B981; font-size:16px; font-weight:800;'>🟢 ARRIVED (Zrobione)</h3>", unsafe_allow_html=True)
-                for _, row in df_tasks_clean[df_tasks_clean["Status"] == "Zrobione"].iterrows(): 
+                for _, row in df_tasks_clean[status_norm == "zrobione"].iterrows(): 
                     st.markdown(f"""<div class='task-card done'>
 <div class='task-title' style='text-decoration: line-through; color: #9CA3AF;'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
@@ -284,8 +290,9 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
                                     time.sleep(1.5)
                                     st.cache_data.clear()
                                     st.rerun()
-                                except Exception as e: st.error(f"Błąd zapisu: {e}")
-                                
+                                except Exception as e: 
+                                    st.error(f"Błąd zapisu: {e}")
+                                    
             with col_hist:
                 for idx, row in df_notes[df_notes["Wiadomość"].str.strip() != ""].iloc[::-1].iterrows():
                     st.markdown(f"""<div style="background-color: #1E293B; border-left: 6px solid #FFB81C; border-radius: 6px; padding: 18px; margin-bottom: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
