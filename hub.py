@@ -208,35 +208,80 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
         with tab2:
             df_tasks_clean = df_tasks[df_tasks["Temat"].str.strip() != ""]
             
-            # --- ZABEZPIECZENIE PRZED LITERÓWKAMI ---
-            # Tworzymy ustandaryzowaną kolumnę "Status", która eliminuje spacje i wielkie litery
+            # Zabezpieczenie przed literówkami
             status_norm = df_tasks_clean["Status"].str.strip().str.lower()
             
             k_todo, k_inprog, k_done = st.columns(3)
             with k_todo:
                 st.markdown("<h3 style='color: #EF4444; font-size:16px; font-weight:800;'>🔴 STANDBY (Do zrobienia)</h3>", unsafe_allow_html=True)
-                # Filtrujemy wg znormalizowanej wartości
-                for _, row in df_tasks_clean[status_norm == "do zrobienia"].iterrows(): 
-                    st.markdown(f"""<div class='task-card todo'>
+                for idx, row in df_tasks_clean[status_norm == "do zrobienia"].iterrows(): 
+                    st.markdown(f"""<div class='task-card todo' style='margin-bottom: 5px;'>
 <div class='task-title'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
 <div class='task-notes'>{row['Notatki']}</div>
 </div>""", unsafe_allow_html=True)
+                    
+                    if st.button("➡️ Rozpocznij", key=f"start_{idx}", use_container_width=True):
+                        with st.spinner("Przesuwanie karty..."):
+                            try:
+                                df_tasks.at[idx, "Status"] = "W trakcie"
+                                conn.update(worksheet="Arkusz1", data=clean_for_gsheets(df_tasks))
+                                time.sleep(1.5)
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e: st.error(f"Błąd zapisu: {e}")
+                    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+
             with k_inprog:
                 st.markdown("<h3 style='color: #FFB81C; font-size:16px; font-weight:800;'>🟡 IN TRANSIT (W trakcie)</h3>", unsafe_allow_html=True)
-                for _, row in df_tasks_clean[status_norm == "w trakcie"].iterrows(): 
-                    st.markdown(f"""<div class='task-card inprogress'>
+                for idx, row in df_tasks_clean[status_norm == "w trakcie"].iterrows(): 
+                    st.markdown(f"""<div class='task-card inprogress' style='margin-bottom: 5px;'>
 <div class='task-title'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
 <div class='task-notes'>{row['Notatki']}</div>
 </div>""", unsafe_allow_html=True)
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("✅ Zakończ", key=f"done_{idx}", use_container_width=True):
+                            with st.spinner("Przesuwanie karty..."):
+                                try:
+                                    df_tasks.at[idx, "Status"] = "Zrobione"
+                                    conn.update(worksheet="Arkusz1", data=clean_for_gsheets(df_tasks))
+                                    time.sleep(1.5)
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e: st.error(f"Błąd zapisu: {e}")
+                    with c2:
+                        if st.button("⏪ Cofnij", key=f"back_{idx}", use_container_width=True):
+                            with st.spinner("Przesuwanie karty..."):
+                                try:
+                                    df_tasks.at[idx, "Status"] = "Do zrobienia"
+                                    conn.update(worksheet="Arkusz1", data=clean_for_gsheets(df_tasks))
+                                    time.sleep(1.5)
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e: st.error(f"Błąd zapisu: {e}")
+                    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+
             with k_done:
                 st.markdown("<h3 style='color: #10B981; font-size:16px; font-weight:800;'>🟢 ARRIVED (Zrobione)</h3>", unsafe_allow_html=True)
-                for _, row in df_tasks_clean[status_norm == "zrobione"].iterrows(): 
-                    st.markdown(f"""<div class='task-card done'>
+                for idx, row in df_tasks_clean[status_norm == "zrobione"].iterrows(): 
+                    st.markdown(f"""<div class='task-card done' style='margin-bottom: 5px;'>
 <div class='task-title' style='text-decoration: line-through; color: #9CA3AF;'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
 </div>""", unsafe_allow_html=True)
+                    
+                    if st.button("⏪ Przywróć", key=f"revert_{idx}", use_container_width=True):
+                        with st.spinner("Przesuwanie karty..."):
+                            try:
+                                df_tasks.at[idx, "Status"] = "W trakcie"
+                                conn.update(worksheet="Arkusz1", data=clean_for_gsheets(df_tasks))
+                                time.sleep(1.5)
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e: st.error(f"Błąd zapisu: {e}")
+                    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
                     
         with tab3:
             cols_c = st.columns(3)
