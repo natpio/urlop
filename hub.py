@@ -206,16 +206,51 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
                 st.markdown(stepper_html + "</div></div>", unsafe_allow_html=True)
                 
         with tab2:
-            df_tasks_clean = df_tasks[df_tasks["Temat"].str.strip() != ""]
+            st.markdown("<br>", unsafe_allow_html=True)
             
-            # Zabezpieczenie przed literówkami
+            # --- DODAWANIE NOWEGO ZADANIA BEZPOŚREDNIO PRZEZ ZESPÓŁ ---
+            with st.expander("➕ DODAJ NOWE ZADANIE DO KANBANA"):
+                with st.form("nowe_zadanie_form", clear_on_submit=True):
+                    c_z1, c_z2 = st.columns(2)
+                    n_zadanie = c_z1.text_input("Treść zadania*:", placeholder="np. Spakować casy z kablami")
+                    n_osoba = c_z2.text_input("Przypisana osoba*:", placeholder="np. Janek / Ekipa Magazyn")
+                    n_temat = st.text_input("Temat / Projekt (opcjonalnie):", placeholder="np. NATO SUMMIT ANKARA")
+                    n_notatki = st.text_area("Dodatkowe notatki (opcjonalnie):", placeholder="Wpisz ewentualne instrukcje...", height=68)
+                    
+                    if st.form_submit_button("Zapisz zadanie w systemie ➔", use_container_width=True):
+                        if n_zadanie.strip() != "" and n_osoba.strip() != "":
+                            with st.spinner("Dodawanie zadania do tablicy..."):
+                                try:
+                                    nowy_wiersz = pd.DataFrame([{
+                                        "Temat": n_temat,
+                                        "Zadanie": n_zadanie,
+                                        "Osoba": n_osoba,
+                                        "Termin": datetime.now().strftime("%Y-%m-%d"),
+                                        "Status": "Do zrobienia",
+                                        "Notatki": n_notatki
+                                    }])
+                                    conn.update(worksheet="Arkusz1", data=clean_for_gsheets(pd.concat([df_tasks, nowy_wiersz], ignore_index=True)))
+                                    time.sleep(1.5)
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e: 
+                                    st.error(f"Błąd zapisu: {e}")
+                        else:
+                            st.error("⚠️ Pole 'Treść zadania' i 'Przypisana osoba' są wymagane!")
+            
+            st.markdown("<hr style='margin: 10px 0 20px 0; border: none; border-top: 2px solid #E5E7EB;'>", unsafe_allow_html=True)
+            
+            # Zapobieganie ukrywaniu zadan bez tematu
+            df_tasks_clean = df_tasks[df_tasks["Zadanie"].str.strip() != ""]
             status_norm = df_tasks_clean["Status"].str.strip().str.lower()
             
             k_todo, k_inprog, k_done = st.columns(3)
             with k_todo:
                 st.markdown("<h3 style='color: #EF4444; font-size:16px; font-weight:800;'>🔴 STANDBY (Do zrobienia)</h3>", unsafe_allow_html=True)
                 for idx, row in df_tasks_clean[status_norm == "do zrobienia"].iterrows(): 
+                    temat_html = f"<div style='font-size:10px; color:#94A3B8; margin-bottom:4px; text-transform:uppercase; font-weight:800; letter-spacing: 0.5px;'>🏷️ {row['Temat']}</div>" if str(row['Temat']).strip() not in ["", "nan", "None", "-"] else ""
                     st.markdown(f"""<div class='task-card todo' style='margin-bottom: 5px;'>
+{temat_html}
 <div class='task-title'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
 <div class='task-notes'>{row['Notatki']}</div>
@@ -235,7 +270,9 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
             with k_inprog:
                 st.markdown("<h3 style='color: #FFB81C; font-size:16px; font-weight:800;'>🟡 IN TRANSIT (W trakcie)</h3>", unsafe_allow_html=True)
                 for idx, row in df_tasks_clean[status_norm == "w trakcie"].iterrows(): 
+                    temat_html = f"<div style='font-size:10px; color:#94A3B8; margin-bottom:4px; text-transform:uppercase; font-weight:800; letter-spacing: 0.5px;'>🏷️ {row['Temat']}</div>" if str(row['Temat']).strip() not in ["", "nan", "None", "-"] else ""
                     st.markdown(f"""<div class='task-card inprogress' style='margin-bottom: 5px;'>
+{temat_html}
 <div class='task-title'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
 <div class='task-notes'>{row['Notatki']}</div>
@@ -267,7 +304,9 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
             with k_done:
                 st.markdown("<h3 style='color: #10B981; font-size:16px; font-weight:800;'>🟢 ARRIVED (Zrobione)</h3>", unsafe_allow_html=True)
                 for idx, row in df_tasks_clean[status_norm == "zrobione"].iterrows(): 
+                    temat_html = f"<div style='font-size:10px; color:#94A3B8; margin-bottom:4px; text-transform:uppercase; font-weight:800; letter-spacing: 0.5px;'>🏷️ {row['Temat']}</div>" if str(row['Temat']).strip() not in ["", "nan", "None", "-"] else ""
                     st.markdown(f"""<div class='task-card done' style='margin-bottom: 5px;'>
+{temat_html}
 <div class='task-title' style='text-decoration: line-through; color: #9CA3AF;'>{row['Zadanie']}</div>
 <div class='task-assignee'>👨‍✈️ {row['Osoba']}</div>
 </div>""", unsafe_allow_html=True)
