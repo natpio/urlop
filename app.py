@@ -20,16 +20,26 @@ from vantage import render_vantage
 # ==========================================
 st.set_page_config(page_title="Global Logistics Hub", page_icon="✈️", layout="wide")
 
-# --- UKRYCIE DOMYŚLNEGO MENU STREAMLIT (WHITE-LABEL) ---
+# --- UKRYCIE MENU STREAMLIT I CAŁKOWITE ZABICIE SIDEBARU ---
 hide_st_style = """<style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
+[data-testid="collapsedControl"] {display: none;} /* Usuwa małą strzałkę w lewym górnym rogu */
+
+/* Stylizacja nowoczesnego menu górnego (Radio Buttons) */
+div[role="radiogroup"] { justify-content: center; gap: 15px; margin-top: 5px;}
+div.row-widget.stRadio > div > label { 
+    border: 2px solid #E5E7EB; padding: 10px 25px; border-radius: 30px; 
+    background: #FFFFFF; transition: all 0.3s ease; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+div.row-widget.stRadio > div > label:hover { border-color: #005DAA; background: #F8FAFC; transform: translateY(-1px); }
+div.row-widget.stRadio > div > label[data-checked="true"] { background: #002244; border-color: #002244; box-shadow: 0 4px 10px rgba(0,34,68,0.2); }
+div.row-widget.stRadio > div > label[data-checked="true"] p { color: #FFFFFF !important; font-weight: 800; }
 </style>"""
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
 def local_css(file_name):
-    """Wczytuje zewnetrzny styl CSS, jesli plik istnieje."""
     try:
         with open(file_name) as f:
             st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
@@ -64,7 +74,7 @@ if not st.session_state["role"]:
     st.stop()
 
 # ==========================================
-# 3. POŁĄCZENIE Z BAZĄ DANYCH (TARCZA ANTY-LIMITOWA GOOGLE)
+# 3. POŁĄCZENIE Z BAZĄ DANYCH
 # ==========================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -100,21 +110,17 @@ if dane_pobrane:
         (df_notes, ["Data", "Kto", "Wiadomość"]),
         (df_miejsca, ["Nazwa do listy", "Nazwa pełna / Firma", "Ulica i numer", "Kod pocztowy", "Miasto", "Kraj"])
     ]
-    
     for df, cols in kolekcje_kolumn:
         for col in cols:
-            if col not in df.columns: 
-                df[col] = ""
+            if col not in df.columns: df[col] = ""
             df[col] = df[col].fillna("").astype(str)
 
-    if "Numer zlecenia" not in df_zlecenia.columns: 
-        df_zlecenia["Numer zlecenia"] = ""
+    if "Numer zlecenia" not in df_zlecenia.columns: df_zlecenia["Numer zlecenia"] = ""
     df_zlecenia["Numer zlecenia"] = df_zlecenia["Numer zlecenia"].astype(str).replace('nan', '')
 
     cols_schedule = ["Event", "Lokalizacja", "Auto", "1_Zaladunek", "2_Montaz_Od", "2_Montaz_Do", "3_Puste_Casy_1", "3_Puste_Casy_2", "4_Dzien_Klienta", "5_Dostawa_Pustych", "6_Odbior_Pelnych", "7_Rozladunek"]
     for col in cols_schedule: 
-        if col not in df_schedule.columns: 
-            df_schedule[col] = None
+        if col not in df_schedule.columns: df_schedule[col] = None
         if col not in ["Event", "Auto", "Lokalizacja"]:
             df_schedule[col] = pd.to_datetime(df_schedule[col], errors='coerce').dt.date
         else:
@@ -132,28 +138,20 @@ def clean_for_gsheets(df):
 def get_current_stage(row):
     today = datetime.now().date()
     current_stage = 0
-    stages_dates = [
-        row.get("1_Zaladunek"), row.get("2_Montaz_Od"), row.get("3_Puste_Casy_1"), 
-        row.get("4_Dzien_Klienta"), row.get("5_Dostawa_Pustych"), row.get("6_Odbior_Pelnych"), row.get("7_Rozladunek")
-    ]
+    stages_dates = [row.get("1_Zaladunek"), row.get("2_Montaz_Od"), row.get("3_Puste_Casy_1"), row.get("4_Dzien_Klienta"), row.get("5_Dostawa_Pustych"), row.get("6_Odbior_Pelnych"), row.get("7_Rozladunek")]
     for i, date_val in enumerate(stages_dates):
-        if pd.notnull(date_val) and today >= date_val: 
-            current_stage = i + 1 
-    if current_stage == 0 and pd.notnull(stages_dates[0]): 
-        current_stage = 1
+        if pd.notnull(date_val) and today >= date_val: current_stage = i + 1 
+    if current_stage == 0 and pd.notnull(stages_dates[0]): current_stage = 1
     return current_stage
 
 @st.cache_data(ttl=3600)
 def get_coordinates(city_name):
-    if not city_name or city_name.strip() == "": 
-        return None, None
+    if not city_name or city_name.strip() == "": return None, None
     try:
         location = Nominatim(user_agent="logistics_hub_agent").geocode(city_name)
-        if location: 
-            return location.latitude, location.longitude
+        if location: return location.latitude, location.longitude
         return None, None
-    except: 
-        return None, None
+    except: return None, None
 
 def render_radar(schedule_df):
     st.markdown("<h3 style='color: #002244; font-weight: 900;'>🗺️ Radar Operacyjny</h3>", unsafe_allow_html=True)
@@ -168,63 +166,27 @@ def render_radar(schedule_df):
         lat, lon = get_coordinates(row.get('Lokalizacja', ''))
         if lat and lon:
             stage = get_current_stage(row)
-            if stage <= 1:
-                status_txt, color = "🔴 Oczekujący", "#EF4444"
-            elif stage < 7:
-                status_txt, color = "🟡 Aktywny (W trasie)", "#FFB81C"
-            else:
-                status_txt, color = "🟢 Zakończony", "#10B981"
-                
-            map_data.append({
-                "Event": row['Event'], 
-                "Lokalizacja": row['Lokalizacja'], 
-                "Auto": row.get('Auto', ''), 
-                "Status": status_txt, 
-                "Kolor": color, 
-                "lat": lat, 
-                "lon": lon
-            })
+            if stage <= 1: status_txt, color = "🔴 Oczekujący", "#EF4444"
+            elif stage < 7: status_txt, color = "🟡 Aktywny (W trasie)", "#FFB81C"
+            else: status_txt, color = "🟢 Zakończony", "#10B981"
+            map_data.append({"Event": row['Event'], "Lokalizacja": row['Lokalizacja'], "Auto": row.get('Auto', ''), "Status": status_txt, "Kolor": color, "lat": lat, "lon": lon})
             
     if not map_data:
         st.warning("Uzupełnij kolumnę 'Lokalizacja' w Harmonogramie, aby aktywować radar (np. Berlin).")
         return
         
     df_map = pd.DataFrame(map_data)
-    fig = px.scatter_mapbox(
-        df_map, 
-        lat="lat", 
-        lon="lon", 
-        hover_name="Event", 
-        hover_data={"lat": False, "lon": False, "Status": True, "Auto": True, "Lokalizacja": True}, 
-        color="Status", 
-        color_discrete_map={
-            "🔴 Oczekujący": "#EF4444", 
-            "🟡 Aktywny (W trasie)": "#FFB81C", 
-            "🟢 Zakończony": "#10B981"
-        }, 
-        zoom=3.5, 
-        height=550
-    )
-    
-    fig.update_layout(
-        mapbox_style="carto-darkmatter", 
-        margin={"r":0,"t":0,"l":0,"b":0}, 
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.5)", font=dict(color="white"))
-    )
+    fig = px.scatter_mapbox(df_map, lat="lat", lon="lon", hover_name="Event", hover_data={"lat": False, "lon": False, "Status": True, "Auto": True, "Lokalizacja": True}, color="Status", color_discrete_map={"🔴 Oczekujący": "#EF4444", "🟡 Aktywny (W trasie)": "#FFB81C", "🟢 Zakończony": "#10B981"}, zoom=3.5, height=550)
+    fig.update_layout(mapbox_style="carto-darkmatter", margin={"r":0,"t":0,"l":0,"b":0}, legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.5)", font=dict(color="white")))
     st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
-# 5. KREATOR ZLECEŃ PDF (SILNIK PRO)
+# 5. KREATOR ZLECEŃ PDF
 # ==========================================
 def pdf_sanitize(text):
     text = str(text)
-    replacements = {
-        'ą':'a', 'ć':'c', 'ę':'e', 'ł':'l', 'ń':'n', 'ó':'o', 'ś':'s', 'ź':'z', 'ż':'z', 
-        'Ą':'A', 'Ć':'C', 'Ę':'E', 'Ł':'L', 'Ń':'N', 'Ó':'O', 'Ś':'S', 'Ź':'Z', 'Ż':'Z', 
-        '€':'EUR', '–':'-', '—':'-', '”':'"', '„':'"', '’':"'", '“':'"', '\xa0':' '
-    }
-    for pl, eng in replacements.items(): 
-        text = text.replace(pl, eng)
+    replacements = {'ą':'a', 'ć':'c', 'ę':'e', 'ł':'l', 'ń':'n', 'ó':'o', 'ś':'s', 'ź':'z', 'ż':'z', 'Ą':'A', 'Ć':'C', 'Ę':'E', 'Ł':'L', 'Ń':'N', 'Ó':'O', 'Ś':'S', 'Ź':'Z', 'Ż':'Z', '€':'EUR', '–':'-', '—':'-', '”':'"', '„':'"', '’':"'", '“':'"', '\xa0':' '}
+    for pl, eng in replacements.items(): text = text.replace(pl, eng)
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
 class PRO_TransportOrder(FPDF):
@@ -232,122 +194,60 @@ class PRO_TransportOrder(FPDF):
         super().__init__()
         self.watermark_text = pdf_sanitize(watermark_text)
         self.opiekun = opiekun
-        
     def add_watermark(self):
-        self.set_font("Arial", 'B', 45)
-        self.set_text_color(245, 245, 245) 
+        self.set_font("Arial", 'B', 45); self.set_text_color(245, 245, 245) 
         for j in range(80, 297, 45):
             przesuniecie = 35 if (j // 45) % 2 == 0 else 0
-            for i in range(-20, 210, 70): 
-                self.text(i + przesuniecie, j, self.watermark_text)
+            for i in range(-20, 210, 70): self.text(i + przesuniecie, j, self.watermark_text)
         self.set_text_color(0, 0, 0)
-        
     def header(self):
         try:
-            if os.path.exists("logosqm.png"):
-                self.image("logosqm.png", 10, 8, 50)
-            elif os.path.exists("logosqm.jpg"):
-                self.image("logosqm.jpg", 10, 8, 50)
-        except Exception as e:
-            pass
-            
-        self.set_font("Arial", 'B', 18)
-        self.set_text_color(40, 40, 40)
-        self.set_xy(65, 12)
-        self.cell(105, 8, pdf_sanitize("TRANSPORT ORDER"), ln=True, align='R')
-        
-        self.set_font("Arial", 'B', 11)
-        self.set_text_color(100, 100, 100)
-        self.set_xy(65, 20)
-        self.cell(105, 5, pdf_sanitize("ZLECENIE TRANSPORTOWE"), ln=True, align='R')
-        
-        self.set_font("Arial", '', 8)
-        self.set_xy(65, 26)
-        self.cell(105, 5, pdf_sanitize("Logistics Department"), ln=True, align='R')
-        self.ln(15)
-        
+            if os.path.exists("logosqm.png"): self.image("logosqm.png", 10, 8, 50)
+            elif os.path.exists("logosqm.jpg"): self.image("logosqm.jpg", 10, 8, 50)
+        except: pass
+        self.set_font("Arial", 'B', 18); self.set_text_color(40, 40, 40); self.set_xy(65, 12); self.cell(105, 8, pdf_sanitize("TRANSPORT ORDER"), ln=True, align='R')
+        self.set_font("Arial", 'B', 11); self.set_text_color(100, 100, 100); self.set_xy(65, 20); self.cell(105, 5, pdf_sanitize("ZLECENIE TRANSPORTOWE"), ln=True, align='R')
+        self.set_font("Arial", '', 8); self.set_xy(65, 26); self.cell(105, 5, pdf_sanitize("Logistics Department"), ln=True, align='R'); self.ln(15)
     def footer(self):
-        self.set_y(-30)
-        self.set_font("Arial", 'I', 10)
-        self.set_text_color(25, 118, 210)
-        self.cell(0, 5, pdf_sanitize("Thank you for your cooperation! / Dziękujemy za współpracę!"), ln=True, align='C')
-        
-        self.set_font("Arial", '', 8)
-        self.set_text_color(100, 100, 100)
+        self.set_y(-30); self.set_font("Arial", 'I', 10); self.set_text_color(25, 118, 210); self.cell(0, 5, pdf_sanitize("Thank you for your cooperation! / Dziękujemy za współpracę!"), ln=True, align='C')
+        self.set_font("Arial", '', 8); self.set_text_color(100, 100, 100)
         email = "logistics@company.com" if self.opiekun == "PD" else "transport@company.com"
         self.cell(0, 5, pdf_sanitize(f"Generated by Global Logistics Terminal | {email}"), ln=True, align='C')
 
 def generate_pro_pdf(dane):
     pdf = PRO_TransportOrder(opiekun=dane.get('opiekun', 'PD'))
-    pdf.alias_nb_pages()
-    pdf.add_page()
-    pdf.add_watermark()
-    
+    pdf.alias_nb_pages(); pdf.add_page(); pdf.add_watermark()
     qr = qrcode.QRCode(version=1, box_size=10, border=1)
     qr.add_data(f"VERIFY: {dane['nr']}\nSYS: TERMINAL PRO")
     qr.make(fit=True)
     img_qr = qr.make_image(fill_color="black", back_color="white")
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-        img_qr.save(tmp, format="PNG")
-        qr_path = tmp.name
-        
+        img_qr.save(tmp, format="PNG"); qr_path = tmp.name
     pdf.image(qr_path, 175, 10, 25)
-    if os.path.exists(qr_path): 
-        os.remove(qr_path)
-        
-    pdf.set_xy(10, 40)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.set_fill_color(25, 118, 210)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(25, 8, pdf_sanitize(" REF "), border=0, fill=True, align='C')
-    
-    pdf.set_fill_color(245, 245, 245)
-    pdf.set_text_color(40, 40, 40)
-    pdf.cell(60, 8, pdf_sanitize(f" {dane['nr']}"), border=0, fill=True)
-    pdf.cell(5, 8, "", border=0) 
-    
-    pdf.set_fill_color(25, 118, 210)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(25, 8, pdf_sanitize(" DATE "), border=0, fill=True, align='C')
-    
-    pdf.set_fill_color(245, 245, 245)
-    pdf.set_text_color(40, 40, 40)
-    pdf.cell(60, 8, pdf_sanitize(f" {datetime.now().strftime('%d.%m.%Y')}"), border=0, fill=True)
-    pdf.ln(12)
+    if os.path.exists(qr_path): os.remove(qr_path)
+    pdf.set_xy(10, 40); pdf.set_font("Arial", 'B', 9); pdf.set_fill_color(25, 118, 210); pdf.set_text_color(255, 255, 255)
+    pdf.cell(25, 8, pdf_sanitize(" REF "), border=0, fill=True, align='C'); pdf.set_fill_color(245, 245, 245); pdf.set_text_color(40, 40, 40)
+    pdf.cell(60, 8, pdf_sanitize(f" {dane['nr']}"), border=0, fill=True); pdf.cell(5, 8, "", border=0) 
+    pdf.set_fill_color(25, 118, 210); pdf.set_text_color(255, 255, 255); pdf.cell(25, 8, pdf_sanitize(" DATE "), border=0, fill=True, align='C')
+    pdf.set_fill_color(245, 245, 245); pdf.set_text_color(40, 40, 40); pdf.cell(60, 8, pdf_sanitize(f" {datetime.now().strftime('%d.%m.%Y')}"), border=0, fill=True); pdf.ln(12)
 
     def draw_section_header(num, title):
-        pdf.set_fill_color(25, 118, 210)
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(10, 10, pdf_sanitize(str(num).zfill(2)), fill=True, align='C')
-        pdf.set_text_color(40, 40, 40)
-        pdf.cell(5, 10, "", border=0)
-        pdf.cell(0, 10, pdf_sanitize(title), ln=True)
-        pdf.ln(2)
+        pdf.set_fill_color(25, 118, 210); pdf.set_text_color(255, 255, 255); pdf.set_font("Arial", 'B', 12)
+        pdf.cell(10, 10, pdf_sanitize(str(num).zfill(2)), fill=True, align='C'); pdf.set_text_color(40, 40, 40); pdf.cell(5, 10, "", border=0); pdf.cell(0, 10, pdf_sanitize(title), ln=True); pdf.ln(2)
 
     def draw_row(label, val, border_b=True):
-        x_start = pdf.get_x()
-        y_start = pdf.get_y()
-        pdf.set_font("Arial", 'B', 8)
-        pdf.set_text_color(100, 100, 100)
-        pdf.cell(65, 6, pdf_sanitize(label), border=0)
-        
-        pdf.set_font("Arial", 'B', 10)
-        pdf.set_text_color(40, 40, 40)
-        pdf.set_xy(x_start + 65, y_start + 0.5)
+        x_start, y_start = pdf.get_x(), pdf.get_y()
+        pdf.set_font("Arial", 'B', 8); pdf.set_text_color(100, 100, 100); pdf.cell(65, 6, pdf_sanitize(label), border=0)
+        pdf.set_font("Arial", 'B', 10); pdf.set_text_color(40, 40, 40); pdf.set_xy(x_start + 65, y_start + 0.5)
         pdf.multi_cell(125, 5, pdf_sanitize(val), border=0)
         y_end = pdf.get_y() + 1.5
-        
-        if border_b: 
-            pdf.set_draw_color(230, 230, 230)
-            pdf.line(10, y_end, 200, y_end)
+        if border_b: pdf.set_draw_color(230, 230, 230); pdf.line(10, y_end, 200, y_end)
         pdf.set_xy(10, y_end + 2)
 
     draw_section_header(1, "PARTIES & ASSETS / STRONY I POJAZD")
     draw_row("CONTRACTOR / PRZEWOŹNIK:", dane['przewoznik_detale'])
     draw_row("VEHICLE & DRIVER / AUTO I KIEROWCA:", dane['auto'] if dane['auto'] else "TBA / Do podania")
-    draw_row("VALUATION MODEL / TRYB WYCENY:", dane['typ_zlecenia'], border_b=False)
-    pdf.ln(4)
+    draw_row("VALUATION MODEL / TRYB WYCENY:", dane['typ_zlecenia'], border_b=False); pdf.ln(4)
 
     draw_section_header(2, "LOGISTICS TIMELINE / HARMONOGRAM")
     draw_row("LOADING PLACE / MIEJSCE ZAŁADUNKU:", dane['zaladunek'])
@@ -357,119 +257,78 @@ def generate_pro_pdf(dane):
         draw_row("UNLOADING DATE / DATA ROZŁADUNKU:", dane['data_roz'])
         draw_row("EMPTIES IN / ODBIÓR PUSTYCH:", dane['data_emp_in'])
         draw_row("RETURN LOAD / DATA POWROTU:", dane['data_emp_out'], border_b=False)
-    else: 
-        draw_row("UNLOADING DATE / DATA ROZŁADUNKU:", dane['data_roz'], border_b=False)
+    else: draw_row("UNLOADING DATE / DATA ROZŁADUNKU:", dane['data_roz'], border_b=False)
     pdf.ln(4)
 
     draw_section_header(3, "FINANCIALS & CARGO / FINANSE I ŁADUNEK")
     sy = pdf.get_y()
-    
-    pdf.set_xy(120, sy)
-    pdf.set_fill_color(25, 118, 210)
-    pdf.rect(120, sy, 80, 25, 'F')
-    
-    pdf.set_xy(125, sy + 3)
-    pdf.set_font("Arial", 'B', 8)
-    pdf.set_text_color(255, 255, 255)
+    pdf.set_xy(120, sy); pdf.set_fill_color(25, 118, 210); pdf.rect(120, sy, 80, 25, 'F')
+    pdf.set_xy(125, sy + 3); pdf.set_font("Arial", 'B', 8); pdf.set_text_color(255, 255, 255)
     pdf.cell(70, 5, pdf_sanitize("TOTAL NET RATE / KWOTA NETTO"), ln=True)
-    
-    pdf.set_xy(125, sy + 10)
-    pdf.set_font("Arial", 'B', 20)
+    pdf.set_xy(125, sy + 10); pdf.set_font("Arial", 'B', 20)
     pdf.cell(70, 10, pdf_sanitize(f"{dane['stawka']} {dane['waluta']}"), ln=True)
-    
-    pdf.set_xy(10, sy)
-    pdf.set_font("Arial", 'B', 8)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(55, 5, pdf_sanitize("CARGO TYPE / TOWAR:"), border=0)
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.set_text_color(40, 40, 40)
-    pdf.set_xy(65, sy)
-    pdf.multi_cell(50, 5, pdf_sanitize("Exhibition Structures / AV Equipment"))
-    
-    pdf.set_xy(10, pdf.get_y() + 2)
-    pdf.set_font("Arial", 'B', 8)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(55, 5, pdf_sanitize("GROSS WEIGHT / WAGA BRUTTO:"), border=0)
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.set_text_color(40, 40, 40)
-    pdf.set_xy(65, pdf.get_y())
-    pdf.cell(50, 5, pdf_sanitize(f"{dane['waga']} kg"))
-    
-    pdf.set_xy(10, sy + 35)
-    draw_section_header(4, "SPECIAL PROVISIONS / UWAGI SPECJALNE")
-    pdf.set_font("Arial", 'I', 10)
-    pdf.multi_cell(0, 6, pdf_sanitize(dane['uwagi']))
+    pdf.set_xy(10, sy); pdf.set_font("Arial", 'B', 8); pdf.set_text_color(100, 100, 100); pdf.cell(55, 5, pdf_sanitize("CARGO TYPE / TOWAR:"), border=0)
+    pdf.set_font("Arial", 'B', 10); pdf.set_text_color(40, 40, 40); pdf.set_xy(65, sy); pdf.multi_cell(50, 5, pdf_sanitize("Exhibition Structures / AV Equipment"))
+    pdf.set_xy(10, pdf.get_y() + 2); pdf.set_font("Arial", 'B', 8); pdf.set_text_color(100, 100, 100); pdf.cell(55, 5, pdf_sanitize("GROSS WEIGHT / WAGA BRUTTO:"), border=0)
+    pdf.set_font("Arial", 'B', 10); pdf.set_text_color(40, 40, 40); pdf.set_xy(65, pdf.get_y()); pdf.cell(50, 5, pdf_sanitize(f"{dane['waga']} kg"))
+    pdf.set_xy(10, sy + 35); draw_section_header(4, "SPECIAL PROVISIONS / UWAGI SPECJALNE")
+    pdf.set_font("Arial", 'I', 10); pdf.multi_cell(0, 6, pdf_sanitize(dane['uwagi']))
 
     return bytes(pdf.output(dest='S').encode('latin1'))
 
 # ==========================================
-# 6. WSPÓLNY PANEL BOCZNY (NAWIGACJA)
+# 6. GŁÓWNA NAWIGACJA (TOP-BAR ZAMIAST SIDEBARU)
 # ==========================================
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=60)
-    st.markdown("<br>", unsafe_allow_html=True)
-    
+st.markdown("<br>", unsafe_allow_html=True)
+top_c1, top_c2, top_c3 = st.columns([1, 4, 1], gap="medium")
+
+with top_c1:
     if st.session_state["role"] == "admin":
-        st.success("👨‍✈️ CAPTAIN (ADMIN)")
+        st.markdown("""<div style="background: #002244; color: #FFB81C; padding: 12px; border-radius: 8px; text-align: center; font-weight: 900; letter-spacing: 1px; border: 1px solid #FFB81C; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">👨‍✈️ CAPTAIN (ADMIN)</div>""", unsafe_allow_html=True)
     else:
-        st.info("👨‍💼 CREW (ZESPÓŁ)")
-        
-    nav_mode = st.radio("Nawigacja Modułów:", ["🌍 Hub Operacyjny", "📄 Kreator Zleceń PRO", "📊 Kalkulator Vantage"])
-    
-    st.markdown("---")
-    if st.button("🚪 Zakończ zmianę", use_container_width=True):
+        st.markdown("""<div style="background: #E0E7FF; color: #002244; padding: 12px; border-radius: 8px; text-align: center; font-weight: 900; letter-spacing: 1px; border: 1px solid #93C5FD; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">👨‍💼 CREW (ZESPÓŁ)</div>""", unsafe_allow_html=True)
+
+with top_c2:
+    nav_mode = st.radio("Nawigacja:", ["🌍 Hub Operacyjny", "📄 Kreator Zleceń PRO", "📊 Kalkulator Vantage"], horizontal=True, label_visibility="collapsed")
+
+with top_c3:
+    if st.button("🚪 Wyloguj (Zakończ Zmianę)", use_container_width=True):
         st.session_state["role"] = None
         st.rerun()
+
+st.markdown("<hr style='margin: 10px 0 30px 0; border: none; border-top: 2px solid #E5E7EB;'>", unsafe_allow_html=True)
 
 # =====================================================================
 # WIDOK 1: HUB OPERACYJNY (GŁÓWNY SYSTEM)
 # =====================================================================
 if nav_mode == "🌍 Hub Operacyjny":
 
-    # ------- KONTO ADMINA -------
     if st.session_state["role"] == "admin":
         st.markdown("""<div class="aviation-banner">
 <h1>⚙️ FLIGHT DECK (CMS)</h1>
 <p>Zarządzanie infrastrukturą, zadaniami, flotą i logbookiem.</p>
 </div>""", unsafe_allow_html=True)
-        
         tab_a1, tab_a2, tab_a3, tab_a4, tab_a5 = st.tabs(["📋 REJESTR ZADAŃ", "📅 HARMONOGRAM", "🚚 FLOTA", "🔗 SYSTEMY", "📝 LOGBOOK"])
         
         with tab_a1:
-            edytowane_zadania = st.data_editor(
-                df_tasks, num_rows="dynamic", use_container_width=True, hide_index=True, 
-                column_config={"Status": st.column_config.SelectboxColumn(options=["Do zrobienia", "W trakcie", "Zrobione"])}
-            )
+            edytowane_zadania = st.data_editor(df_tasks, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"Status": st.column_config.SelectboxColumn(options=["Do zrobienia", "W trakcie", "Zrobione"])})
             if st.button("🛫 Wgraj aktualizację zadań", type="primary"): 
                 with st.spinner("Przesyłanie do bazy..."):
                     try:
                         conn.update(worksheet="Arkusz1", data=clean_for_gsheets(edytowane_zadania))
                         time.sleep(1.5)
-                        st.cache_data.clear()
-                        st.rerun()
-                    except Exception as e: 
-                        st.error(f"Błąd zapisu: {e}")
-                        
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e: st.error(f"Błąd zapisu: {e}")
         with tab_a2:
-            date_cols_config = {
-                col: st.column_config.DateColumn(col, format="YYYY-MM-DD") 
-                for col in cols_schedule if col not in ["Event", "Auto", "Lokalizacja"]
-            }
-            edytowane_harm = st.data_editor(
-                df_schedule, num_rows="dynamic", use_container_width=True, hide_index=True, column_config=date_cols_config
-            )
+            date_cols_config = {col: st.column_config.DateColumn(col, format="YYYY-MM-DD") for col in cols_schedule if col not in ["Event", "Auto", "Lokalizacja"]}
+            edytowane_harm = st.data_editor(df_schedule, num_rows="dynamic", use_container_width=True, hide_index=True, column_config=date_cols_config)
             if st.button("🛫 Wgraj aktualizację harmonogramu", type="primary"): 
                 with st.spinner("Przesyłanie do bazy..."):
                     try:
                         conn.update(worksheet="Harmonogram", data=clean_for_gsheets(edytowane_harm))
                         time.sleep(1.5)
-                        st.cache_data.clear()
-                        st.rerun()
-                    except Exception as e: 
-                        st.error(f"Błąd zapisu: {e}")
-                        
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e: st.error(f"Błąd zapisu: {e}")
         with tab_a3:
             edytowane_przewoz = st.data_editor(df_carriers, num_rows="dynamic", use_container_width=True, hide_index=True)
             if st.button("🛫 Wgraj aktualizację floty", type="primary"): 
@@ -477,26 +336,17 @@ if nav_mode == "🌍 Hub Operacyjny":
                     try:
                         conn.update(worksheet="Przewoznicy", data=clean_for_gsheets(edytowane_przewoz))
                         time.sleep(1.5)
-                        st.cache_data.clear()
-                        st.rerun()
-                    except Exception as e: 
-                        st.error(f"Błąd zapisu: {e}")
-                        
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e: st.error(f"Błąd zapisu: {e}")
         with tab_a4:
-            edytowane_linki = st.data_editor(
-                df_links, num_rows="dynamic", use_container_width=True, hide_index=True, 
-                column_config={"URL": st.column_config.LinkColumn()}
-            )
+            edytowane_linki = st.data_editor(df_links, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn()})
             if st.button("🛫 Wgraj aktualizację systemów", type="primary"): 
                 with st.spinner("Przesyłanie do bazy..."):
                     try:
                         conn.update(worksheet="Linki", data=clean_for_gsheets(edytowane_linki))
                         time.sleep(1.5)
-                        st.cache_data.clear()
-                        st.rerun()
-                    except Exception as e: 
-                        st.error(f"Błąd zapisu: {e}")
-                        
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e: st.error(f"Błąd zapisu: {e}")
         with tab_a5:
             col_hist, col_form = st.columns([3, 2], gap="large")
             with col_form:
@@ -510,18 +360,11 @@ if nav_mode == "🌍 Hub Operacyjny":
                         if kto.strip() != "" and wiadomosc.strip() != "":
                             with st.spinner("Nadawanie komunikatu..."):
                                 try:
-                                    nowy_wpis = pd.DataFrame([{
-                                        "Data": datetime.now().strftime("%Y-%m-%d | %H:%M:%S"), 
-                                        "Kto": kto, 
-                                        "Wiadomość": wiadomosc
-                                    }])
+                                    nowy_wpis = pd.DataFrame([{"Data": datetime.now().strftime("%Y-%m-%d | %H:%M:%S"), "Kto": kto, "Wiadomość": wiadomosc}])
                                     conn.update(worksheet="Notatnik", data=clean_for_gsheets(pd.concat([df_notes, nowy_wpis], ignore_index=True)))
                                     time.sleep(1.5)
-                                    st.cache_data.clear()
-                                    st.rerun()
-                                except Exception as e: 
-                                    st.error(f"Błąd zapisu: {e}")
-                                    
+                                    st.cache_data.clear(); st.rerun()
+                                except Exception as e: st.error(f"Błąd zapisu: {e}")
             with col_hist:
                 df_notes_clean = df_notes[df_notes["Wiadomość"].str.strip() != ""]
                 for idx, row in df_notes_clean.iloc[::-1].iterrows():
@@ -537,12 +380,9 @@ if nav_mode == "🌍 Hub Operacyjny":
                             try:
                                 conn.update(worksheet="Notatnik", data=clean_for_gsheets(df_notes.drop(idx)))
                                 time.sleep(1.5)
-                                st.cache_data.clear()
-                                st.rerun()
-                            except Exception as e: 
-                                st.error(f"Błąd usuwania: {e}")
+                                st.cache_data.clear(); st.rerun()
+                            except Exception as e: st.error(f"Błąd usuwania: {e}")
 
-    # ------- KONTO ZESPOŁU -------
     elif st.session_state["role"] == "team":
         colA, colB = st.columns([5, 1])
         with colA: 
@@ -551,30 +391,18 @@ if nav_mode == "🌍 Hub Operacyjny":
 <p>Bieżący monitoring statusów logistycznych i komunikacja</p>
 </div>""", unsafe_allow_html=True)
         with colB: 
-            st.write("")
-            st.write("")
+            st.write(""); st.write("")
             if st.button("🔄 POBIERZ DANE", use_container_width=True): 
-                st.cache_data.clear()
-                st.rerun()
+                st.cache_data.clear(); st.rerun()
         
         tab_radar, tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗺️ RADAR", "🚦 EVENTY", "📋 KANBAN", "🚚 FLOTA", "🔗 PORTALE", "📝 LOGBOOK"])
         
-        with tab_radar: 
-            render_radar(df_schedule)
-            
+        with tab_radar: render_radar(df_schedule)
         with tab1:
             st.markdown("<br>", unsafe_allow_html=True)
             for _, row in df_schedule[df_schedule["Event"].str.strip() != ""].iterrows():
                 etap = get_current_stage(row)
-                stages = [
-                    {"name": "Załadunek", "date": row.get('1_Zaladunek')}, 
-                    {"name": "Montaż", "date": row.get('2_Montaz_Od')}, 
-                    {"name": "Casy", "date": row.get('3_Puste_Casy_1')}, 
-                    {"name": "Targi", "date": row.get('4_Dzien_Klienta')}, 
-                    {"name": "Dostawa Casów", "date": row.get('5_Dostawa_Pustych')}, 
-                    {"name": "Odbiór Pełn.", "date": row.get('6_Odbior_Pelnych')}, 
-                    {"name": "Rozładunek", "date": row.get('7_Rozladunek')}
-                ]
+                stages = [{"name": "Załadunek", "date": row.get('1_Zaladunek')}, {"name": "Montaż", "date": row.get('2_Montaz_Od')}, {"name": "Casy", "date": row.get('3_Puste_Casy_1')}, {"name": "Targi", "date": row.get('4_Dzien_Klienta')}, {"name": "Dostawa Casów", "date": row.get('5_Dostawa_Pustych')}, {"name": "Odbiór Pełn.", "date": row.get('6_Odbior_Pelnych')}, {"name": "Rozładunek", "date": row.get('7_Rozladunek')}]
                 stepper_html = f"""<div class="timeline-container">
 <div class="timeline-header">
 <div class="timeline-title">✈️ {row['Event']} <span style='font-size:14px; color: #6B7280; font-weight:normal;'>({row.get('Lokalizacja', '')})</span></div>
@@ -582,8 +410,7 @@ if nav_mode == "🌍 Hub Operacyjny":
 </div>
 <div class="stepper-wrapper">"""
                 for idx, s in enumerate(stages):
-                    step_num = idx + 1
-                    status_class = "completed" if step_num < etap else ("active" if step_num == etap else "")
+                    step_num, status_class = idx + 1, "completed" if (idx+1) < etap else ("active" if (idx+1) == etap else "")
                     date_str = s['date'].strftime('%d.%m') if pd.notnull(s['date']) else "---"
                     stepper_html += f"""<div class="stepper-item {status_class}">
 <div class="step-counter">{step_num}</div>
@@ -666,17 +493,11 @@ if nav_mode == "🌍 Hub Operacyjny":
                         if kto.strip() != "" and wiadomosc.strip() != "":
                             with st.spinner("Nadawanie komunikatu..."):
                                 try:
-                                    nowy_wpis = pd.DataFrame([{
-                                        "Data": datetime.now().strftime("%Y-%m-%d | %H:%M:%S"), 
-                                        "Kto": kto, 
-                                        "Wiadomość": wiadomosc
-                                    }])
+                                    nowy_wpis = pd.DataFrame([{"Data": datetime.now().strftime("%Y-%m-%d | %H:%M:%S"), "Kto": kto, "Wiadomość": wiadomosc}])
                                     conn.update(worksheet="Notatnik", data=clean_for_gsheets(pd.concat([df_notes, nowy_wpis], ignore_index=True)))
                                     time.sleep(1.5)
-                                    st.cache_data.clear()
-                                    st.rerun()
-                                except Exception as e: 
-                                    st.error(f"Błąd zapisu: {e}")
+                                    st.cache_data.clear(); st.rerun()
+                                except Exception as e: st.error(f"Błąd zapisu: {e}")
                                     
             with col_hist:
                 for idx, row in df_notes[df_notes["Wiadomość"].str.strip() != ""].iloc[::-1].iterrows():
@@ -686,7 +507,7 @@ if nav_mode == "🌍 Hub Operacyjny":
 <span style="background: #002244; color: #FFB81C; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid #FFB81C;">👤 {row['Kto']}</span>
 </div>
 <div style="color: #F8FAFC; font-size: 16px; font-weight: 400; font-family: monospace; letter-spacing: 0.5px;">"{row['Wiadomość']}"</div>
-</div>""", unsafe_allow_html=True)
+</div><br>""", unsafe_allow_html=True)
 
 # =====================================================================
 # WIDOK 2: KREATOR ZLECEŃ PRO (PDF)
@@ -704,30 +525,13 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
         if st.button("🔄 ZAMKNIJ I WRÓĆ DO KREATORA", use_container_width=True):
             del st.session_state["pdf_data"]
             st.rerun()
-            
     else:
         tryb_pracy = st.radio("Tryb działania kreatora:", ["Nowe Zlecenie", "Edycja Istniejącego Zlecenia"], horizontal=True)
-        
-        val_typ_zlecenia = "Tylko dostawa"
-        val_waga = 1000
-        val_data_zal = datetime.now().date()
-        val_data_roz = datetime.now().date()
-        val_data_emp_in = datetime.now().date()
-        val_data_emp_out = datetime.now().date()
-        val_nazwa_przewoznika = "Wybierz..."
-        val_detale_przewoznika = ""
-        val_stawka_final = 0.0
-        val_waluta = "EUR"
-        val_z_sel = "Magazyn SQM Komorniki"
-        val_z_man = ""
-        val_c_auto = ""
-        val_instrukcje = "Parking strzeżony, pasy zabezpieczające; załadować po długości, casy nie mogą leżeć."
-        val_podpis = "PD"
-        val_wartosc_towaru = 100000
-        val_projekt = "Brak"
-        wybrane_zlecenie_nr = None
-        gs_row_index = None
-        val_zrodlo = "Przewoźnik z bazy"
+        val_typ_zlecenia, val_waga, val_data_zal, val_data_roz = "Tylko dostawa", 1000, datetime.now().date(), datetime.now().date()
+        val_data_emp_in, val_data_emp_out = datetime.now().date(), datetime.now().date()
+        val_nazwa_przewoznika, val_detale_przewoznika, val_stawka_final, val_waluta = "Wybierz...", "", 0.0, "EUR"
+        val_z_sel, val_z_man, val_c_auto, val_instrukcje, val_podpis = "Magazyn SQM Komorniki", "", "", "Parking strzeżony, pasy zabezpieczające; załadować po długości, casy nie mogą leżeć.", "PD"
+        val_wartosc_towaru, val_projekt, wybrane_zlecenie_nr, gs_row_index, val_zrodlo = 100000, "Brak", None, None, "Przewoźnik z bazy"
         
         lista_eventow = df_schedule['Event'].dropna().unique().tolist() if not df_schedule.empty else []
         lista_miejsc_baza = df_miejsca['Nazwa do listy'].tolist() if not df_miejsca.empty else []
@@ -735,131 +539,87 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
         
         if tryb_pracy == "Edycja Istniejącego Zlecenia":
             if df_zlecenia.empty or len(df_zlecenia[df_zlecenia['Numer zlecenia'].str.strip() != ""]) == 0:
-                st.warning("Baza zleceń jest pusta - brak danych do edycji.")
-                st.stop()
+                st.warning("Baza zleceń jest pusta - brak danych do edycji."); st.stop()
             else:
                 lista_nr = df_zlecenia[df_zlecenia['Numer zlecenia'].str.strip() != ""]['Numer zlecenia'].tolist()
                 wybrane_zlecenie_nr = st.selectbox("🎯 Wybierz numer zlecenia do edycji:", lista_nr)
                 idx_pd = df_zlecenia[df_zlecenia['Numer zlecenia'] == wybrane_zlecenie_nr].index[0]
                 r_edit = df_zlecenia.iloc[idx_pd]
                 gs_row_index = int(idx_pd) + 2 
-                
                 val_typ_zlecenia = "Pełny event" if "TARGI" in str(r_edit.get('Typ', '')) or "CYKL:" in str(r_edit.get('Uwagi / Instrukcje', '')) else "Tylko dostawa"
-                
-                try: 
-                    val_data_zal = datetime.strptime(str(r_edit.get('Data załadunku', '')), "%Y-%m-%d").date()
-                except: 
-                    pass
-                    
-                try: 
-                    val_data_roz = datetime.strptime(str(r_edit.get('Data rozładunku', '')), "%Y-%m-%d").date()
-                except: 
-                    pass
-                
+                try: val_data_zal = datetime.strptime(str(r_edit.get('Data załadunku', '')), "%Y-%m-%d").date()
+                except: pass
+                try: val_data_roz = datetime.strptime(str(r_edit.get('Data rozładunku', '')), "%Y-%m-%d").date()
+                except: pass
                 stawka_str = str(r_edit.get('Stawka', '0 EUR'))
                 if " " in stawka_str:
-                    try: 
-                        val_stawka_final = float(stawka_str.split(" ")[0])
-                        val_waluta = stawka_str.split(" ")[1]
-                    except: 
-                        pass
+                    try: val_stawka_final, val_waluta = float(stawka_str.split(" ")[0]), stawka_str.split(" ")[1]
+                    except: pass
                 else:
-                    try: 
-                        val_stawka_final = float(stawka_str)
-                    except: 
-                        pass
-                    
-                val_nazwa_przewoznika = str(r_edit.get('Zleceniobiorca', ''))
-                val_projekt = str(r_edit.get('ID Projektu', ''))
-                val_z_sel = str(r_edit.get('Miejsce Zaladunku', ''))
-                
+                    try: val_stawka_final = float(stawka_str)
+                    except: pass
+                val_nazwa_przewoznika, val_projekt, val_z_sel = str(r_edit.get('Zleceniobiorca', '')), str(r_edit.get('ID Projektu', '')), str(r_edit.get('Miejsce Zaladunku', ''))
                 uwagi_baza = str(r_edit.get('Uwagi / Instrukcje', ''))
                 if "AUTO: " in uwagi_baza:
-                    try: 
-                        val_c_auto = uwagi_baza.split("AUTO: ")[1].split(" ||")[0]
-                    except: 
-                        pass
-                
+                    try: val_c_auto = uwagi_baza.split("AUTO: ")[1].split(" ||")[0]
+                    except: pass
                 if "WART: " in uwagi_baza:
-                    try: 
-                        val_wartosc_towaru = int(uwagi_baza.split("WART: ")[1].split(" EUR")[0])
+                    try: val_wartosc_towaru = int(uwagi_baza.split("WART: ")[1].split(" EUR")[0])
                     except: 
-                        try: 
-                            val_wartosc_towaru = int(uwagi_baza.split("WART: ")[1].split(" PLN")[0])
-                        except: 
-                            pass
-                        
+                        try: val_wartosc_towaru = int(uwagi_baza.split("WART: ")[1].split(" PLN")[0])
+                        except: pass
                 if " || " in uwagi_baza:
                     parts = uwagi_baza.split(" || ")
-                    if len(parts) >= 4: 
-                        val_instrukcje = parts[3]
-                    elif len(parts) == 3 and "CYKL:" not in parts[2]: 
-                        val_instrukcje = parts[2]
-                
+                    if len(parts) >= 4: val_instrukcje = parts[3]
+                    elif len(parts) == 3 and "CYKL:" not in parts[2]: val_instrukcje = parts[2]
                 r_p = df_carriers[df_carriers['Firma'] == val_nazwa_przewoznika]
                 if not r_p.empty:
                     r = r_p.iloc[0]
                     val_detale_przewoznika = f"{str(r.get('Firma', ''))}\n{str(r.get('Adres', ''))}\nNIP: {str(r.get('NIP', ''))}\nTel: {str(r.get('Telefon', ''))} | {str(r.get('Kontakt', ''))}".strip()
                     val_zrodlo = "Przewoźnik z bazy"
                 else:
-                    val_zrodlo = "Przewoźnik z giełdy"
-                    val_detale_przewoznika = ""
+                    val_zrodlo, val_detale_przewoznika = "Przewoźnik z giełdy", ""
 
         with st.container(border=True):
             st.markdown("#### 1. Kierunek i Harmonogram")
             typ_zlecenia = st.radio("Tryb operacji:", ["Tylko dostawa", "Pełny event"], index=["Tylko dostawa", "Pełny event"].index(val_typ_zlecenia), horizontal=True)
             waga = st.number_input("Waga (kg):", min_value=100, step=100, value=val_waga)
-            
             d1, d2 = st.columns(2)
-            data_zal = d1.date_input("Data załadunku (PL):", val_data_zal)
-            data_roz = d2.date_input("Data rozładunku (Cel):", val_data_roz)
-            
+            data_zal, data_roz = d1.date_input("Data załadunku (PL):", val_data_zal), d2.date_input("Data rozładunku (Cel):", val_data_roz)
             if typ_zlecenia == "Pełny event":
                 h1, h2 = st.columns(2)
-                data_emp_in = h1.date_input("Odbiór pustych:", val_data_emp_in)
-                data_emp_out = h2.date_input("Powrót / Załadunek:", val_data_emp_out)
-            else: 
-                data_emp_in, data_emp_out = "", ""
+                data_emp_in, data_emp_out = h1.date_input("Odbiór pustych:", val_data_emp_in), h2.date_input("Powrót / Załadunek:", val_data_emp_out)
+            else: data_emp_in, data_emp_out = "", ""
 
         with st.container(border=True):
             st.markdown("#### 2. Przewoźnik i Koszty")
             zrodlo_idx = ["Przewoźnik z bazy", "Przewoźnik z giełdy"].index(val_zrodlo) if val_zrodlo in ["Przewoźnik z bazy", "Przewoźnik z giełdy"] else 0
             zrodlo = st.radio("Źródło przewoźnika:", ["Przewoźnik z bazy", "Przewoźnik z giełdy"], index=zrodlo_idx, horizontal=True)
-            
             lista_cennikowa = df_carriers['Firma'].dropna().unique().tolist() if not df_carriers.empty else []
             
             if zrodlo == "Przewoźnik z bazy":
-                if tryb_pracy == "Edycja Istniejącego Zlecenia" and val_nazwa_przewoznika not in lista_cennikowa and val_nazwa_przewoznika != "":
-                    lista_cennikowa.append(val_nazwa_przewoznika)
-                
+                if tryb_pracy == "Edycja Istniejącego Zlecenia" and val_nazwa_przewoznika not in lista_cennikowa and val_nazwa_przewoznika != "": lista_cennikowa.append(val_nazwa_przewoznika)
                 f1, f2, f3 = st.columns([2, 1, 1])
-                nazwa_przewoznika = f1.selectbox("Wybierz partnera z bazy:", ["Wybierz..."] + lista_cennikowa, index=(lista_cennikowa.index(val_nazwa_przewoznika)+1 if val_nazwa_przewoznika in lista_cennikowa else 0))
-                
+                nazwa_przewoznika = f1.selectbox("Wybierz partnera:", ["Wybierz..."] + lista_cennikowa, index=(lista_cennikowa.index(val_nazwa_przewoznika)+1 if val_nazwa_przewoznika in lista_cennikowa else 0))
                 if nazwa_przewoznika != "Wybierz...":
                     r_p = df_carriers[df_carriers['Firma'] == nazwa_przewoznika]
                     if not r_p.empty:
                         r = r_p.iloc[0]
                         detale_przewoznika = f"{str(r.get('Firma', ''))}\n{str(r.get('Adres', ''))}\nNIP: {str(r.get('NIP', ''))}\nTel: {str(r.get('Telefon', ''))} | {str(r.get('Kontakt', ''))}".strip()
-                    else: 
-                        detale_przewoznika = nazwa_przewoznika
-                else: 
-                    detale_przewoznika = ""
-                
+                    else: detale_przewoznika = nazwa_przewoznika
+                else: detale_przewoznika = ""
                 stawka_final = f2.number_input("Cena Total:", value=float(val_stawka_final))
                 waluta = f3.selectbox("Waluta:", ["EUR", "PLN"], index=(["EUR", "PLN"].index(val_waluta) if val_waluta in ["EUR", "PLN"] else 0))
-                
             else:
                 nazwa_przewoznika = st.text_input("Nazwa firmy z giełdy:", value=val_nazwa_przewoznika if val_zrodlo == "Przewoźnik z giełdy" else "")
-                detale_przewoznika = st.text_area("Pełne dane (Adres, NIP, Kontakt):", value=val_detale_przewoznika if val_zrodlo == "Przewoźnik z giełdy" else "", placeholder="Wklej pełne dane przewoźnika do zamówienia...")
+                detale_przewoznika = st.text_area("Pełne dane (Adres, NIP, Kontakt):", value=val_detale_przewoznika if val_zrodlo == "Przewoźnik z giełdy" else "", placeholder="Wklej pełne dane przewoźnika...")
                 f1, f2 = st.columns(2)
-                stawka_final = f1.number_input("Cena Total:", value=float(val_stawka_final))
-                waluta = f2.selectbox("Waluta:", ["EUR", "PLN"], index=(["EUR", "PLN"].index(val_waluta) if val_waluta in ["EUR", "PLN"] else 0))
+                stawka_final, waluta = f1.number_input("Cena Total:", value=float(val_stawka_final)), f2.selectbox("Waluta:", ["EUR", "PLN"], index=(["EUR", "PLN"].index(val_waluta) if val_waluta in ["EUR", "PLN"] else 0))
 
         with st.container(border=True):
             st.markdown("#### 3. Logistyka Miejsc")
             projekt = st.selectbox("Przypisz do Projektu:", ["Brak"] + lista_eventow, index=(lista_eventow.index(val_projekt)+1 if val_projekt in lista_eventow else 0))
             l1, l2 = st.columns(2)
-            
             with l1:
                 z_sel = st.selectbox("Miejsce startu:", opcje_lokalizacji, index=(opcje_lokalizacji.index(val_z_sel) if val_z_sel in opcje_lokalizacji else 0))
                 z_man = st.text_input("Adres startu (ręcznie):", value=val_z_man) if z_sel == "INNE (wpisz ręcznie)" else ""
@@ -870,105 +630,46 @@ elif nav_mode == "📄 Kreator Zleceń PRO":
         with st.container(border=True):
             st.markdown("#### 4. Realizacja i Uwagi")
             d_auto, d_wart = st.columns(2)
-            c_auto = d_auto.text_input("Auto / Kierowca:", value=val_c_auto, placeholder="np. PO 12345 / Jan Kowalski")
-            wartosc_towaru = d_wart.number_input("Wartość towaru (EUR):", min_value=0, value=val_wartosc_towaru)
-            
+            c_auto, wartosc_towaru = d_auto.text_input("Auto / Kierowca:", value=val_c_auto), d_wart.number_input("Wartość towaru (EUR):", min_value=0, value=val_wartosc_towaru)
             u1, u2 = st.columns([3, 1])
-            instrukcje = u1.text_area("Instrukcje dodatkowe:", value=val_instrukcje, height=80)
-            podpis = u2.radio("Podpis:", ["PD", "PK"], index=(["PD", "PK"].index(val_podpis) if val_podpis in ["PD", "PK"] else 0), horizontal=True)
+            instrukcje, podpis = u1.text_area("Instrukcje dodatkowe:", value=val_instrukcje, height=80), u2.radio("Podpis:", ["PD", "PK"], index=(["PD", "PK"].index(val_podpis) if val_podpis in ["PD", "PK"] else 0), horizontal=True)
 
         btn_label = "⚡ ZAPISZ ZMIANY I REGENERUJ PDF" if tryb_pracy == "Edycja Istniejącego Zlecenia" else "⚡ GENERUJ I ZAPISZ ZLECENIE PRO"
-
         if st.button(btn_label, type="primary", use_container_width=True):
-            if not nazwa_przewoznika or nazwa_przewoznika == "Wybierz...":
-                st.error("Podaj nazwę przewoźnika!")
+            if not nazwa_przewoznika or nazwa_przewoznika == "Wybierz...": st.error("Podaj nazwę przewoźnika!")
             else:
                 with st.spinner("Przetwarzanie dokumentów i zapis do bazy..."):
                     try:
-                        final_zal_db = z_man if z_sel == "INNE (wpisz ręcznie)" else z_sel
-                        final_roz_db = r_m if r_s == "INNE (wpisz ręcznie)" else r_s
-                        
+                        final_zal_db, final_roz_db = (z_man if z_sel == "INNE (wpisz ręcznie)" else z_sel), (r_m if r_s == "INNE (wpisz ręcznie)" else r_s)
                         def build_full_address(place_name, manual_addr, df):
-                            if place_name == "INNE (wpisz ręcznie)": 
-                                return manual_addr
-                            if place_name == "Magazyn SQM Komorniki": 
-                                return "Magazyn Centralny;\nul. Poznańska 165, Komorniki"
+                            if place_name == "INNE (wpisz ręcznie)": return manual_addr
+                            if place_name == "Magazyn SQM Komorniki": return "Magazyn Centralny;\nul. Poznańska 165, Komorniki"
                             if df is not None and not df.empty:
                                 row = df[df['Nazwa do listy'] == place_name]
                                 if not row.empty:
                                     r = row.iloc[0]
                                     return f"{r.get('Nazwa pełna / Firma', place_name)}\n{r.get('Ulica i numer', '')}\n{r.get('Kod pocztowy', '')} {r.get('Miasto', '')}, {r.get('Kraj', '')}"
                             return place_name
-
-                        full_zal_pdf = build_full_address(z_sel, z_man, df_miejsca)
-                        full_roz_pdf = build_full_address(r_s, r_m, df_miejsca)
-                        
+                        full_zal_pdf, full_roz_pdf = build_full_address(z_sel, z_man, df_miejsca), build_full_address(r_s, r_m, df_miejsca)
                         historia_cyklu = f"CYKL: {data_zal} -> {data_roz}" + (f" | EMP: {data_emp_in} | POWRÓT: {data_emp_out}" if typ_zlecenia == "Pełny event" else "")
                         pelne_uwagi_db = f"AUTO: {c_auto} || WART: {wartosc_towaru} EUR || {historia_cyklu} || {instrukcje}"
                         uwagi_na_pdf = f"VEHICLE/DRIVER: {c_auto}\n{instrukcje}"
-                        
-                        if tryb_pracy == "Edycja Istniejącego Zlecenia":
-                            nr_zlecenia = wybrane_zlecenie_nr
+                        if tryb_pracy == "Edycja Istniejącego Zlecenia": nr_zlecenia = wybrane_zlecenie_nr
                         else:
                             dzis_ile = len(df_zlecenia[df_zlecenia['Numer zlecenia'].str.contains(datetime.now().strftime('%y/%m%d'))]) if not df_zlecenia.empty else 0
-                            idx_nowy = dzis_ile + 1
-                            nr_zlecenia = f"CRG{datetime.now().strftime('%y/%m%d')}/{podpis}{idx_nowy:02d}"
+                            nr_zlecenia = f"CRG{datetime.now().strftime('%y/%m%d')}/{podpis}{dzis_ile + 1:02d}"
                         
-                        paczka_pdf = {
-                            "typ_zlecenia": typ_zlecenia, 
-                            "nr": nr_zlecenia, 
-                            "przewoznik_nazwa": nazwa_przewoznika, 
-                            "przewoznik_detale": detale_przewoznika,
-                            "stawka": stawka_final, 
-                            "waluta": waluta, 
-                            "zaladunek": full_zal_pdf, 
-                            "data_zal": str(data_zal),
-                            "rozladunek": full_roz_pdf, 
-                            "data_roz": str(data_roz), 
-                            "data_emp_in": str(data_emp_in), 
-                            "data_emp_out": str(data_emp_out),
-                            "waga": waga, 
-                            "auto": c_auto, 
-                            "uwagi": uwagi_na_pdf, 
-                            "opiekun": podpis 
-                        }
-                        
-                        nowy_wiersz = pd.DataFrame([{
-                            "Data": datetime.now().strftime("%Y-%m-%d %H:%M"), 
-                            "Numer zlecenia": nr_zlecenia, 
-                            "Dział": "LOGISTYKA CARGO", 
-                            "Zleceniobiorca": nazwa_przewoznika,
-                            "Miejsce Zaladunku": final_zal_db, 
-                            "Miejsce Rozladunku": final_roz_db, 
-                            "Data załadunku": str(data_zal), 
-                            "Data rozładunku": str(data_roz),
-                            "Typ": "Zabudowa Targowa PRO", 
-                            "Puste1": "", "Puste2": "", "Puste3": "", "Puste4": "", 
-                            "Uwagi / Instrukcje": pelne_uwagi_db, 
-                            "Puste5": "", 
-                            "ID Projektu": projekt, 
-                            "Rodzaj": "TARGI", 
-                            "Stawka": f"{stawka_final} {waluta}"
-                        }])
+                        paczka_pdf = {"typ_zlecenia": typ_zlecenia, "nr": nr_zlecenia, "przewoznik_nazwa": nazwa_przewoznika, "przewoznik_detale": detale_przewoznika, "stawka": stawka_final, "waluta": waluta, "zaladunek": full_zal_pdf, "data_zal": str(data_zal), "rozladunek": full_roz_pdf, "data_roz": str(data_roz), "data_emp_in": str(data_emp_in), "data_emp_out": str(data_emp_out), "waga": waga, "auto": c_auto, "uwagi": uwagi_na_pdf, "opiekun": podpis}
+                        nowy_wiersz = pd.DataFrame([{"Data": datetime.now().strftime("%Y-%m-%d %H:%M"), "Numer zlecenia": nr_zlecenia, "Dział": "LOGISTYKA CARGO", "Zleceniobiorca": nazwa_przewoznika, "Miejsce Zaladunku": final_zal_db, "Miejsce Rozladunku": final_roz_db, "Data załadunku": str(data_zal), "Data rozładunku": str(data_roz), "Typ": "Zabudowa Targowa PRO", "Puste1": "", "Puste2": "", "Puste3": "", "Puste4": "", "Uwagi / Instrukcje": pelne_uwagi_db, "Puste5": "", "ID Projektu": projekt, "Rodzaj": "TARGI", "Stawka": f"{stawka_final} {waluta}"}])
                         
                         if tryb_pracy == "Edycja Istniejącego Zlecenia":
                             df_zlecenia.iloc[idx_pd] = nowy_wiersz.iloc[0]
                             conn.update(worksheet="Zlecenia", data=clean_for_gsheets(df_zlecenia))
-                        else:
-                            conn.update(worksheet="Zlecenia", data=clean_for_gsheets(pd.concat([df_zlecenia, nowy_wiersz], ignore_index=True)))
-                            
+                        else: conn.update(worksheet="Zlecenia", data=clean_for_gsheets(pd.concat([df_zlecenia, nowy_wiersz], ignore_index=True)))
                         time.sleep(1.5) 
-                        
-                        pdf_bytes = generate_pro_pdf(paczka_pdf)
-                        st.session_state["pdf_data"] = pdf_bytes
-                        st.session_state["pdf_name"] = f"Order_{nr_zlecenia.replace('/', '_')}.pdf"
-                        st.session_state["pdf_nr"] = nr_zlecenia
-                        
-                        st.cache_data.clear()
-                        st.rerun()
-                        
-                    except Exception as e:
-                        st.error(f"⚠️ Wystąpił błąd podczas generowania i zapisu: {e}")
+                        st.session_state["pdf_data"], st.session_state["pdf_name"], st.session_state["pdf_nr"] = generate_pro_pdf(paczka_pdf), f"Order_{nr_zlecenia.replace('/', '_')}.pdf", nr_zlecenia
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e: st.error(f"⚠️ Wystąpił błąd podczas generowania i zapisu: {e}")
 
 # =====================================================================
 # WIDOK 3: KALKULATOR VANTAGE
