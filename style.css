@@ -1,106 +1,158 @@
-/* GLOBALNE ZMIENNE (Paleta United Airlines) */
+/* ==========================================
+   GLOBAL LOGISTICS HUB - STYL CSS PRO 999+
+   ========================================== */
+
 :root {
     --ua-navy: #002244;
     --ua-blue: #005DAA;
     --ua-gold: #FFB81C;
     --ua-gray-bg: #F3F5F7;
-    --ua-text-dark: #1F2937;
-    --ua-text-light: #6B7280;
-    --ua-white: #FFFFFF;
 }
 
-/* Wymuszamy lotnicze tło na głównej aplikacji */
+/* ==========================================
+   1. GŁÓWNE TŁO APLIKACJI (ZNAK WODNY, RADAR, SIATKA)
+   ========================================== */
 .stApp {
     background-color: var(--ua-gray-bg);
+    background-image: 
+        /* 1. Drobna siatka nawigacyjna */
+        linear-gradient(rgba(0, 93, 170, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 93, 170, 0.03) 1px, transparent 1px),
+        /* 2. Znak wodny SQM LOGISTICS + Trasy lotu + Pierścienie radaru (SVG) */
+        url("data:image/svg+xml,%3Csvg width='400' height='400' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='50%25' y='50%25' font-size='40' font-family='Arial, sans-serif' font-weight='900' fill='rgba(0, 34, 68, 0.04)' text-anchor='middle' dominant-baseline='middle' transform='rotate(-30, 200, 200)'%3ESQM LOGISTICS%3C/text%3E%3Cpath d='M-100 500 L500 -100' stroke='rgba(255, 184, 28, 0.08)' stroke-width='2' stroke-dasharray='15,15'/%3E%3Ccircle cx='200' cy='200' r='150' stroke='rgba(0, 93, 170, 0.03)' stroke-width='1' fill='none'/%3E%3Ccircle cx='200' cy='200' r='100' stroke='rgba(0, 93, 170, 0.03)' stroke-width='1' stroke-dasharray='5,5' fill='none'/%3E%3C/svg%3E");
+    background-size: 50px 50px, 50px 50px, 400px 400px;
+    background-position: center center;
+    background-attachment: fixed;
 }
 
-/* BANER NAGŁÓWKOWY */
+/* ==========================================
+   2. BANERY LOTNICZE (NAGŁÓWKI)
+   ========================================== */
 .aviation-banner {
-    background: linear-gradient(135deg, var(--ua-navy) 0%, var(--ua-blue) 100%);
-    color: var(--ua-white);
+    background: linear-gradient(135deg, var(--ua-navy) 0%, #00152b 100%);
+    color: white;
     padding: 30px;
-    border-radius: 8px;
-    margin-bottom: 30px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    margin-bottom: 25px;
+    box-shadow: 0 10px 25px rgba(0,34,68,0.2);
     border-left: 8px solid var(--ua-gold);
 }
-.aviation-banner h1 { margin: 0; font-size: 32px; font-weight: 900; letter-spacing: 1px; color: var(--ua-white);}
-.aviation-banner p { margin: 5px 0 0 0; font-size: 16px; opacity: 0.9; }
+.aviation-banner h1 {
+    margin: 0 0 10px 0;
+    font-weight: 900;
+    letter-spacing: 2px;
+    font-size: 28px;
+}
+.aviation-banner p {
+    margin: 0;
+    color: #94A3B8;
+    font-size: 16px;
+}
 
-/* KARTY KANBAN (Zadania) */
+/* ==========================================
+   3. KANBAN - KARTY ZADAŃ
+   ========================================== */
 .task-card {
-    background-color: var(--ua-white);
-    border: 1px solid #E5E7EB;
-    border-radius: 6px;
+    background: white;
     padding: 16px;
-    margin-bottom: 16px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    border-top: 4px solid #D1D5DB; /* Domyślny pasek */
-    transition: all 0.2s ease-in-out;
-}
-.task-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-}
-.task-card.todo { border-top-color: #EF4444; } 
-.task-card.inprogress { border-top-color: var(--ua-gold); } 
-.task-card.done { border-top-color: #10B981; opacity: 0.8; } 
-
-.task-title { font-weight: 800; color: var(--ua-navy); font-size: 15px; margin-bottom: 10px; line-height: 1.3;}
-.task-assignee { font-size: 11px; color: var(--ua-navy); background: #E0E7FF; padding: 4px 10px; border-radius: 20px; font-weight: 700; display: inline-block;}
-.task-notes { font-size: 12px; color: var(--ua-text-light); margin-top: 10px; padding-top: 10px; border-top: 1px solid #E5E7EB; }
-
-/* KARTY TERMINALOWE (Linki i Przewoźnicy) */
-.terminal-card {
-    background-color: var(--ua-white);
-    border: 1px solid #E5E7EB;
     border-radius: 8px;
-    padding: 24px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    border: 1px solid #E2E8F0;
+    border-left: 5px solid #CBD5E1;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    z-index: 10;
+}
+.task-card.todo { border-left-color: #EF4444; }
+.task-card.inprogress { border-left-color: #FFB81C; }
+.task-card.done { border-left-color: #10B981; opacity: 0.85; }
+
+.task-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+.task-title { font-weight: 800; color: var(--ua-navy); font-size: 15px; margin-bottom: 8px; }
+.task-assignee { font-size: 12px; color: #64748B; background: #F1F5F9; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-bottom: 8px;}
+.task-notes { font-size: 13px; color: #475569; font-style: italic; }
+
+/* ==========================================
+   4. KARTY SYSTEMOWE (FLOTA, PORTALE)
+   ========================================== */
+.terminal-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    border: 1px solid #E2E8F0;
+    border-top: 5px solid var(--ua-blue);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    height: 100%;
-    min-height: 260px;
+    transition: all 0.3s ease;
+    margin-bottom: 15px;
+}
+.terminal-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 20px rgba(0,93,170,0.15);
+}
+.terminal-card-category { font-size: 11px; font-weight: 800; color: #94A3B8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px;}
+.terminal-card-title { font-size: 18px; font-weight: 900; color: var(--ua-navy); margin-bottom: 12px;}
+.terminal-card-desc { font-size: 13px; color: #475569; margin-bottom: 15px; line-height: 1.5;}
+.terminal-card-btn {
+    background: #F8FAFC; color: var(--ua-blue); text-decoration: none; padding: 10px; border-radius: 6px;
+    text-align: center; font-weight: 800; font-size: 13px; transition: 0.2s; border: 1px solid #E2E8F0;
+    display: block;
+}
+.terminal-card-btn:hover { background: var(--ua-blue); color: white; }
+
+/* ==========================================
+   5. OŚ CZASU (GANTT / EVENTY)
+   ========================================== */
+.timeline-container {
+    background: white; 
+    padding: 25px; 
+    border-radius: 12px; 
     margin-bottom: 20px;
-    position: relative;
-    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+    border: 1px solid #E2E8F0;
 }
-.terminal-card::before {
-    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 6px; background-color: var(--ua-navy);
+.timeline-header {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 30px;
+    border-bottom: 2px solid #F1F5F9; 
+    padding-bottom: 15px;
 }
-.terminal-card-category { color: var(--ua-gold); font-weight: 900; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
-.terminal-card-title { color: var(--ua-navy); font-weight: 900; font-size: 18px; margin-bottom: 12px; line-height: 1.2; }
-.terminal-card-desc { color: var(--ua-text-light); font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
-.terminal-card-btn { 
-    background-color: var(--ua-navy); color: var(--ua-white) !important; font-weight: 700; text-align: center; text-decoration: none; padding: 12px; border-radius: 4px; display: block; width: 100%; transition: 0.3s; margin-top: auto; letter-spacing: 1px; font-size: 13px; text-transform: uppercase;
+.timeline-title { font-size: 20px; font-weight: 900; color: var(--ua-navy); text-transform: uppercase;}
+.timeline-truck { background: #F1F5F9; color: var(--ua-navy); font-weight: 800; padding: 6px 15px; border-radius: 20px; font-size: 12px; border: 1px solid #E2E8F0;}
+
+.stepper-wrapper {
+    display: flex; justify-content: space-between; position: relative;
 }
-.terminal-card-btn:hover { background-color: var(--ua-blue); box-shadow: 0 4px 6px rgba(0,93,170,0.3); }
-
-/* GANTT / STEPPER (Oś Czasu) */
-.timeline-container { background: var(--ua-white); padding: 30px; border-radius: 8px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
-.timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid var(--ua-gray-bg); padding-bottom: 15px; }
-.timeline-title { font-size: 22px; font-weight: 900; color: var(--ua-navy); text-transform: uppercase; letter-spacing: 1px;}
-.timeline-truck { background: var(--ua-gray-bg); color: var(--ua-navy); font-weight: 800; padding: 6px 16px; border-radius: 4px; font-size: 13px; border: 1px solid #D1D5DB;}
-
-.stepper-wrapper { display: flex; justify-content: space-between; position: relative; }
-.stepper-item { position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; text-align: center; z-index: 2; }
-.stepper-item::before { position: absolute; content: ""; border-bottom: 4px solid #E5E7EB; width: 100%; top: 18px; left: -50%; z-index: -1; }
-.stepper-item:first-child::before { content: none; }
-
-.step-counter { width: 40px; height: 40px; border-radius: 50%; background: var(--ua-white); color: var(--ua-text-light); display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 14px; margin-bottom: 10px; border: 4px solid #E5E7EB; transition: 0.3s;}
-.step-name { font-size: 12px; font-weight: 800; color: var(--ua-text-dark); text-transform: uppercase; }
-.step-date { font-size: 11px; color: var(--ua-text-light); margin-top: 4px; font-weight: 600;}
-
-.stepper-item.completed .step-counter { background: var(--ua-navy); color: var(--ua-white); border-color: var(--ua-navy); }
-.stepper-item.completed + .stepper-item::before { border-color: var(--ua-navy); }
-.stepper-item.active .step-counter { background: var(--ua-gold); color: var(--ua-navy); border-color: var(--ua-navy); transform: scale(1.15); box-shadow: 0 0 15px rgba(255, 184, 28, 0.4);}
-.stepper-item.active .step-name { color: var(--ua-navy); }
-
-/* STYLIZACJA ZAKŁADEK STREAMLIT (TABS) */
-div[data-testid="stTabs"] button[aria-selected="true"] {
-    background-color: var(--ua-navy) !important; color: var(--ua-white) !important; border-radius: 4px 4px 0 0; border-bottom: 3px solid var(--ua-gold) !important; font-weight: 800 !important;
+/* Linia łącząca kółka */
+.stepper-wrapper::before {
+    content: ""; position: absolute; top: 18px; left: 0; right: 0; height: 3px; background: #E2E8F0; z-index: 0;
 }
-div[data-testid="stTabs"] button[aria-selected="false"] {
-    background-color: transparent !important; color: var(--ua-text-light) !important; font-weight: 600 !important;
+.stepper-item {
+    position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; z-index: 1;
 }
+.step-counter {
+    width: 40px; height: 40px; border-radius: 50%; background: #F8FAFC; border: 3px solid #E2E8F0;
+    display: flex; justify-content: center; align-items: center; font-weight: 900; color: #94A3B8;
+    font-size: 14px; margin-bottom: 10px; transition: all 0.3s ease;
+}
+.step-name { font-size: 12px; font-weight: 800; color: #64748B; text-transform: uppercase; text-align: center; margin-bottom: 4px;}
+.step-date { font-size: 11px; color: #94A3B8; font-family: monospace; font-weight: 600;}
+
+/* Status: ZAKOŃCZONE */
+.stepper-item.completed .step-counter { background: var(--ua-navy); border-color: var(--ua-navy); color: white; }
+.stepper-item.completed .step-name { color: var(--ua-navy); }
+
+/* Status: AKTYWNE (Dzisiaj / W trasie) */
+.stepper-item.active .step-counter {
+    background: var(--ua-gold); border-color: var(--ua-navy); color: var(--ua-navy);
+    transform: scale(1.15); box-shadow: 0 0 15px rgba(255,184,28,0.4); border-width: 4px;
+}
+.stepper-item.active .step-name { color: var(--ua-navy); font-weight: 900;}
+.stepper-item.active .step-date { color: var(--ua-navy); font-weight: 800;}
