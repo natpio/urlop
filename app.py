@@ -209,12 +209,23 @@ def clean_for_gsheets(df):
     return cleaned
 
 def get_current_stage(row):
+    """Zaktualizowany Silnik Czasu uwzględniający minięte daty"""
     today = datetime.now().date()
-    current_stage = 0
-    stages_dates = [row.get("1_Zaladunek"), row.get("2_Montaz_Od"), row.get("3_Puste_Casy_1"), row.get("4_Dzien_Klienta"), row.get("5_Dostawa_Pustych"), row.get("6_Odbior_Pelnych"), row.get("7_Rozladunek")]
+    current_stage = 1
+    stages_dates = [
+        row.get("1_Zaladunek"), row.get("2_Montaz_Od"), row.get("3_Puste_Casy_1"), 
+        row.get("4_Dzien_Klienta"), row.get("5_Dostawa_Pustych"), row.get("6_Odbior_Pelnych"), row.get("7_Rozladunek")
+    ]
     for i, date_val in enumerate(stages_dates):
-        if pd.notnull(date_val) and today >= date_val: current_stage = i + 1 
-    if current_stage == 0 and pd.notnull(stages_dates[0]): current_stage = 1
+        if pd.notnull(date_val):
+            if today > date_val:
+                current_stage = i + 2 # Jeśli wczoraj -> podświetla kolejny cel
+            elif today == date_val:
+                current_stage = i + 1 # Jeśli dzisiaj -> świeci to
+                break
+            else:
+                current_stage = i + 1 # Jeśli jutro -> czeka na ten krok
+                break
     return current_stage
 
 @st.cache_data(ttl=3600)
@@ -245,7 +256,7 @@ def render_radar(schedule_df):
             map_data.append({"Event": row['Event'], "Lokalizacja": row['Lokalizacja'], "Auto": row.get('Auto', ''), "Status": status_txt, "Kolor": color, "lat": lat, "lon": lon})
             
     if not map_data:
-        st.warning("Uzupełnij kolumnę 'Lokalizacja' w Harmonogramie, aby aktywować radar (np. Berlin).")
+        st.warning("Uzupełnij kolumnę 'Lokalizacja' w Harmonogramie, aby aktywować radar.")
         return
         
     df_map = pd.DataFrame(map_data)
@@ -483,7 +494,8 @@ if nav_mode == "🌍 Hub Operacyjny":
 </div>
 <div class="stepper-wrapper">"""
                 for idx, s in enumerate(stages):
-                    step_num, status_class = idx + 1, "completed" if (idx+1) < etap else ("active" if (idx+1) == etap else "")
+                    step_num = idx + 1
+                    status_class = "completed" if step_num < etap else ("active" if step_num == etap else "")
                     date_str = s['date'].strftime('%d.%m') if pd.notnull(s['date']) else "---"
                     stepper_html += f"""<div class="stepper-item {status_class}">
 <div class="step-counter">{step_num}</div>
