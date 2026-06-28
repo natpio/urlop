@@ -346,7 +346,8 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
             df_links_clean["Kategoria"] = df_links_clean["Kategoria"].str.strip().replace("", "OGÓLNE")
             
             for kategoria in sorted(df_links_clean["Kategoria"].unique().tolist()):
-                st.markdown(f"<h4 style='color: #002244; font-weight: 900; letter-spacing: 1px; margin-top:20px;'>📂 {kategoria.upper()}</h4>", unsafe_allow_html=True)
+                st.markdown(f"<h4 style='color: #002244; font-weight: 900; letter-spacing: 1px; margin-top:20px; border-bottom: 2px solid #F1F5F9; padding-bottom: 10px;'>📂 {kategoria.upper()}</h4>", unsafe_allow_html=True)
+                
                 kolumny = st.columns(4) 
                 for index, row in df_links_clean[df_links_clean["Kategoria"] == kategoria].reset_index(drop=True).iterrows():
                     
@@ -355,14 +356,22 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
                     safe_url = raw_url if raw_url.startswith(('http://', 'https://')) else f"https://{raw_url}"
                     
                     with kolumny[index % 4]: 
-                        st.markdown(f"""<div class="terminal-card">
+                        st.markdown(f"""<div class="terminal-card" style="min-height: 210px; display: flex; flex-direction: column; justify-content: space-between;">
 <div>
-<div class="terminal-card-category">🌐 {kategoria}</div>
-<div class="terminal-card-title">{row['Nazwa']}</div>
-<div class="terminal-card-desc">{row['Opis']}</div>
-<div style="font-size: 11px; color: #64748B; margin-bottom: 15px; word-break: break-all;">🔗 {raw_url}</div>
+    <div style="display: flex; margin-bottom: 15px;">
+        <span style="background-color: #002244; color: #FFB81C; font-size: 9px; font-weight: 900; text-transform: uppercase; padding: 4px 10px; border-radius: 12px; letter-spacing: 1px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            ✈️ {kategoria}
+        </span>
+    </div>
+    <div class="terminal-card-title" style="font-size: 16px;">{row['Nazwa']}</div>
+    <div class="terminal-card-desc" style="font-size: 12px;">{row['Opis']}</div>
 </div>
-<a href="{safe_url}" target="_blank" class="terminal-card-btn">Zainicjuj Połączenie ➔</a>
+<div style="margin-top: 15px;">
+    <div style="font-size: 10px; color: #94A3B8; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: monospace; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
+        🔗 {raw_url}
+    </div>
+    <a href="{safe_url}" target="_blank" class="terminal-card-btn" style="text-transform: uppercase; letter-spacing: 0.5px;">Zainicjuj Połączenie ➔</a>
+</div>
 </div>""", unsafe_allow_html=True)
                         
         with tab5:
