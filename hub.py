@@ -341,13 +341,16 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
 </div>""", unsafe_allow_html=True)
                     
         with tab4:
-            df_links_clean = df_links[df_links["Kategoria"].str.strip() != ""]
+            df_links_clean = df_links.copy()
+            # Jeśli kolumna Kategoria jest pusta, zamieniamy ją na tekst "OGÓLNE"
+            df_links_clean["Kategoria"] = df_links_clean["Kategoria"].str.strip().replace("", "OGÓLNE")
+            
             for kategoria in sorted(df_links_clean["Kategoria"].unique().tolist()):
                 st.markdown(f"<h4 style='color: #002244; font-weight: 900; letter-spacing: 1px; margin-top:20px;'>📂 {kategoria.upper()}</h4>", unsafe_allow_html=True)
                 kolumny = st.columns(4) 
                 for index, row in df_links_clean[df_links_clean["Kategoria"] == kategoria].reset_index(drop=True).iterrows():
                     
-                    # Automatyczne dodawanie HTTPS jeśli brakuje (inaczej linki nie zadziałają)
+                    # Automatyczne dodawanie bezpiecznego protokołu linku
                     raw_url = str(row['URL']).strip()
                     safe_url = raw_url if raw_url.startswith(('http://', 'https://')) else f"https://{raw_url}"
                     
