@@ -346,14 +346,20 @@ def render_hub(conn, df_tasks, df_schedule, df_carriers, df_links, df_notes):
                 st.markdown(f"<h4 style='color: #002244; font-weight: 900; letter-spacing: 1px; margin-top:20px;'>📂 {kategoria.upper()}</h4>", unsafe_allow_html=True)
                 kolumny = st.columns(4) 
                 for index, row in df_links_clean[df_links_clean["Kategoria"] == kategoria].reset_index(drop=True).iterrows():
+                    
+                    # Automatyczne dodawanie HTTPS jeśli brakuje (inaczej linki nie zadziałają)
+                    raw_url = str(row['URL']).strip()
+                    safe_url = raw_url if raw_url.startswith(('http://', 'https://')) else f"https://{raw_url}"
+                    
                     with kolumny[index % 4]: 
                         st.markdown(f"""<div class="terminal-card">
 <div>
-<div class="terminal-card-category">🌐 P.O.D.</div>
+<div class="terminal-card-category">🌐 {kategoria}</div>
 <div class="terminal-card-title">{row['Nazwa']}</div>
 <div class="terminal-card-desc">{row['Opis']}</div>
+<div style="font-size: 11px; color: #64748B; margin-bottom: 15px; word-break: break-all;">🔗 {raw_url}</div>
 </div>
-<a href="{row['URL']}" target="_blank" class="terminal-card-btn">Zainicjuj Połączenie ➔</a>
+<a href="{safe_url}" target="_blank" class="terminal-card-btn">Zainicjuj Połączenie ➔</a>
 </div>""", unsafe_allow_html=True)
                         
         with tab5:
